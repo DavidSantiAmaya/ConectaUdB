@@ -199,7 +199,7 @@ function VerifyScreen({ onBack }: { onBack: () => void }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "#000000ff",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   button: {
-    backgroundColor: "#000",
+    backgroundColor: "#2563eb",
     width: "100%",
     borderRadius: 14,
     paddingVertical: 14,
