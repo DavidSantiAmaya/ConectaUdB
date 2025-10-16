@@ -1,4 +1,5 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+// app/index.tsx
+import React, { useState, useRef, useCallback, useEffect, JSX } from "react";
 import {
   View,
   Text,
@@ -10,8 +11,46 @@ import {
   Dimensions,
 } from "react-native";
 
-const BG = require("../assets/images/Logo_udb.png"); // adjust if different path
+/*
+  - Cambia las posiciones del fondo cómodamente en CONFIG (más abajo).
+  - Mantiene: login -> register -> verify con animaciones de tarjeta.
+  - Fondo animado (translateX / translateY).
+*/
 
+/* --------------------
+   RECURSOS
+   -------------------- */
+const BG = require("../assets/images/Logo_udb.png"); // Ajusta la ruta si hace falta
+
+/* --------------------
+   CONFIGURACIÓN
+   -------------------- */
+const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get("window");
+
+const CONFIG = {
+  // Posiciones del fondo
+  bg: {
+    initialX: 300,           // posición inicial X (login)
+    registerX: -150,          // posición X al ir a Register
+    verifyY: -SCREEN_H,      // posición Y al ir a Verify (sube fuera de pantalla)
+    resetX: 150,             // posición al volver a Login
+    moveDuration: 420,       // duración por defecto (ms)
+  },
+
+  // Transiciones de la tarjeta
+  card: {
+    slideLarge: SCREEN_W * 0.8, // distancia de slide horizontal (usa % de ancho)
+    slideSmall: 300,            // distancia de slide vertical (verify)
+    outDuration: 350,           // duración salida tarjeta (ms)
+    inDuration: 300,            // duración entrada/opacidad (ms)
+    springFriction: 7,
+    springTension: 50,
+  },
+};
+
+/* --------------------
+   Nombres de pantallas 
+   -------------------- */
 const SCREENS = {
   LOGIN: "login",
   REGISTER: "register",
@@ -20,110 +59,76 @@ const SCREENS = {
 
 type ScreenKey = typeof SCREENS[keyof typeof SCREENS];
 
-export default function App(): React.JSX.Element {
+/* --------------------
+   COMPONENTE PRINCIPAL
+   -------------------- */
+export default function App(): JSX.Element {
   const [screen, setScreen] = useState<ScreenKey>(SCREENS.LOGIN);
 
-  // main animations for card transitions
+  // Animaciones de la tarjeta (slide + opacidad)
   const slideAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
 
-  // screen dims
-  const { height: SCREEN_H } = Dimensions.get("window");
-
-  /**
-   * CONFIG: centraliza aquí todas las posiciones/valores que quieras editar
-   *
-   * bg.initialX   -> posición X inicial del fondo (login)
-   * bg.registerX  -> posición X objetivo cuando el usuario hace "Regístrate"
-   * bg.verifyY    -> posición Y objetivo al entrar en Verify (ej. -SCREEN_H para subir fuera)
-   * bg.resetX     -> posición X al volver a login (por defecto igual a initialX)
-   * bg.duration   -> duración por defecto de la animación del fondo
-   *
-   * card.* -> valores para los movimientos de la tarjeta (si quieres ajustar)
-   */
-  const CONFIG = {
-    bg: {
-      initialX: 150, // px — posición inicial X (login)
-      registerX: -300, // px — posición X al ir a register
-      verifyY: -SCREEN_H, // px — posición Y al ir a verify (sube fuera). Puedes cambiar a -SCREEN_H * 0.6 para subir parcialmente
-      resetX: 150, // px — posición al volver a login (por defecto igual a initialX)
-      duration: 420, // ms — duración por defecto para animaciones del fondo
-      easing: Easing.out(Easing.cubic),
-      scale: 1, // escala aplicada a la imagen para evitar bordes visibles al mover
-    },
-    card: {
-      slideLarge: 400, // valor usado para traslados horizontales grandes (antes 400)
-      slideSmall: 300, // valor usado para traslados verticales (antes 300)
-      outDuration: 350,
-      inDuration: 300,
-      springFriction: 7,
-      springTension: 50,
-    },
-  };
-
-  // background animation values (inicializados usando CONFIG.bg.initialX)
+  // Animaciones del fondo
+  // -> empieza en CONFIG.bg.initialX y 0 en Y
   const bgTranslateX = useRef(new Animated.Value(CONFIG.bg.initialX)).current;
   const bgTranslateY = useRef(new Animated.Value(0)).current;
 
-  // helper: animate background to particular values
-    const animateBackground = useCallback(
-      (toX: number, toY: number, duration = CONFIG.bg.duration) => {
-        Animated.parallel([
-          Animated.timing(bgTranslateX, {
-            toValue: toX,
-            duration,
-            easing: CONFIG.bg.easing,
-            useNativeDriver: true,
-          }),
-          Animated.timing(bgTranslateY, {
-            toValue: toY,
-            duration,
-            easing: CONFIG.bg.easing,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      },
-      [bgTranslateX, bgTranslateY, CONFIG.bg.duration, CONFIG.bg.easing]
-    );
+  // Función simple para animar el fondo a (toX,toY)
+  const animateBackground = useCallback(
+    (toX: number, toY: number, duration = CONFIG.bg.moveDuration) => {
+      Animated.parallel([
+        Animated.timing(bgTranslateX, {
+          toValue: toX,
+          duration,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bgTranslateY, {
+          toValue: toY,
+          duration,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    },
+    [bgTranslateX, bgTranslateY]
+  );
 
   /**
    * animateTransition
    * direction:
-   *  1  = login -> register (slide right -> left)
-   * -1  = any -> login (slide left -> right)
-   *  2  = register -> verify (slide bottom -> top)
+   *  1  = login -> register (derecha → izquierda en tarjeta)
+   * -1  = cualquier -> login (izquierda ← derecha)
+   *  2  = register -> verify (abajo → arriba en tarjeta)
    */
   const animateTransition = useCallback(
     (direction: number, nextScreen: ScreenKey) => {
-      // Slide the card out + fade
+      const SLIDE_LARGE = CONFIG.card.slideLarge;
+      const SLIDE_SMALL = CONFIG.card.slideSmall;
+
+      // Salida: desliza y desvanece
       Animated.parallel([
         Animated.timing(slideAnim, {
-          toValue:
-            direction === 1
-              ? -CONFIG.card.slideLarge
-              : direction === -1
-              ? CONFIG.card.slideLarge
-              : direction === 2
-              ? -CONFIG.card.slideSmall
-              : 0,
+          toValue: direction === 1 ? -SLIDE_LARGE : direction === -1 ? SLIDE_LARGE : direction === 2 ? -SLIDE_SMALL : 0,
           duration: CONFIG.card.outDuration,
           easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(opacityAnim, {
           toValue: 0,
-          duration: 250,
+          duration: CONFIG.card.outDuration - 100,
           easing: Easing.out(Easing.ease),
           useNativeDriver: true,
         }),
       ]).start(() => {
-        // after exit animation, change screen
+        // Cambio de pantalla
         setScreen(nextScreen);
 
-        // set initial offset for incoming screen
-        slideAnim.setValue(direction === 2 ? CONFIG.card.slideSmall : direction === -1 ? -CONFIG.card.slideLarge : CONFIG.card.slideLarge);
+        // Posición inicial para la entrada de la nueva pantalla
+        slideAnim.setValue(direction === 2 ? SLIDE_SMALL : direction === -1 ? -SLIDE_LARGE : SLIDE_LARGE);
 
-        // Entry animation (spring + fade in)
+        // Entrada: spring + fade in
         Animated.parallel([
           Animated.spring(slideAnim, {
             toValue: 0,
@@ -140,18 +145,10 @@ export default function App(): React.JSX.Element {
         ]).start();
       });
     },
-    [
-      slideAnim,
-      opacityAnim,
-      CONFIG.card.inDuration,
-      CONFIG.card.outDuration,
-      CONFIG.card.slideLarge,
-      CONFIG.card.slideSmall,
-      CONFIG.card.springFriction,
-      CONFIG.card.springTension,
-    ]
+    [slideAnim, opacityAnim]
   );
 
+  // Maneja la lógica de cambio de pantalla y sincroniza animaciones de fondo
   const changeScreen = useCallback(
     (nextScreen: ScreenKey) => {
       let direction = 0;
@@ -159,55 +156,54 @@ export default function App(): React.JSX.Element {
       else if (screen === SCREENS.REGISTER && nextScreen === SCREENS.VERIFY) direction = 2;
       else if (nextScreen === SCREENS.LOGIN) direction = -1;
 
-      // Trigger background animations depending on transition
-      if (screen === SCREENS.LOGIN && nextScreen === SCREENS.REGISTER) {
-        // when clicking "Regístrate" from login: move bg further to the right
-        animateBackground(CONFIG.bg.registerX, 0, CONFIG.bg.duration);
-      } else if (screen === SCREENS.REGISTER && nextScreen === SCREENS.VERIFY) {
-        // when going from register -> verify: move bg up (out of view or partial)
-        animateBackground(CONFIG.bg.registerX, CONFIG.bg.verifyY, CONFIG.bg.duration + 30);
-      } else if (nextScreen === SCREENS.LOGIN) {
-        // returning to login: reset bg to initial
-        animateBackground(CONFIG.bg.resetX, 0, CONFIG.bg.duration);
-      }
+      // *************** comportamiento del fondo ***************
 
+      if (screen === SCREENS.LOGIN && nextScreen === SCREENS.REGISTER) {
+        // Desde login -> register: mover fondo a registerX (derecha)
+        animateBackground(CONFIG.bg.registerX, 0, 400);
+      } else if (screen === SCREENS.REGISTER && nextScreen === SCREENS.VERIFY) {
+        // Desde register -> verify: subir fondo fuera de pantalla (Y negativo)
+        animateBackground(CONFIG.bg.registerX, CONFIG.bg.verifyY, 450);
+      } else if (nextScreen === SCREENS.LOGIN) {
+        // Volver a login: restaurar posición inicial
+        animateBackground(CONFIG.bg.resetX, 0, 400);
+      }
+      // ***************************************************************************************
+
+      // Ejecuta animación de tarjeta
       animateTransition(direction, nextScreen);
     },
-    [screen, animateBackground, animateTransition, CONFIG.bg.duration, CONFIG.bg.registerX, CONFIG.bg.resetX, CONFIG.bg.verifyY]
+    [screen, animateBackground, animateTransition]
   );
 
-  const getTransform = useCallback(() => {
-    if (screen === SCREENS.VERIFY) {
-      return [{ translateY: slideAnim }];
-    } else {
-      return [{ translateX: slideAnim }];
-    }
-  }, [screen, slideAnim]);
-
-  // Ensure bg starts at the initial position on mount (in case of hot reload)
+  // Asegurarse que el fondo arranque en la posición inicial (útil para hot reload)
   useEffect(() => {
     bgTranslateX.setValue(CONFIG.bg.initialX);
     bgTranslateY.setValue(0);
-  }, [bgTranslateX, bgTranslateY, CONFIG.bg.initialX]);
+  }, [bgTranslateX, bgTranslateY]);
 
+  // Decide transform para la tarjeta (horizontal o vertical)
+  const getTransform = () => (screen === SCREENS.VERIFY ? [{ translateY: slideAnim }] : [{ translateX: slideAnim }]);
+
+  /* --------------------
+     RENDER
+     -------------------- */
   return (
     <View style={styles.root}>
-      {/* Animated background image (positioned absolutely) */}
+      {/* Imagen de fondo animada */}
       <Animated.Image
         source={BG}
         style={[
           styles.bgImage,
-          {
-            transform: [{ translateX: bgTranslateX }, { translateY: bgTranslateY }, { scale: CONFIG.bg.scale }],
-          },
+          { transform: [{ translateX: bgTranslateX }, { translateY: bgTranslateY }, { scale: 1.05 }] },
         ]}
         resizeMode="cover"
       />
 
-      {/* Overlay to improve contrast */}
+      {/* Overlay (mejora contraste) */}
       <View style={styles.overlay} pointerEvents="none" />
 
-      {/* Main container with animated card */}
+      {/* Contenedor principal */}
       <View style={styles.container}>
         <Animated.View style={[styles.card, { transform: getTransform(), opacity: opacityAnim }]}>
           {screen === SCREENS.LOGIN && <LoginScreen onRegister={() => changeScreen(SCREENS.REGISTER)} />}
@@ -221,9 +217,9 @@ export default function App(): React.JSX.Element {
   );
 }
 
-/* -------------------------
-   Small screen components
-   ------------------------- */
+/* --------------------
+   COMPONENTES PEQUEÑOS (pantallas)
+   -------------------- */
 
 function LoginScreen({ onRegister }: { onRegister: () => void }) {
   return (
@@ -232,7 +228,7 @@ function LoginScreen({ onRegister }: { onRegister: () => void }) {
       <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
 
       <View style={styles.inputContainer}>
-        <TextInput placeholder="Correo electrónico" placeholderTextColor="#aaa" style={styles.input} />
+        <TextInput placeholder="Correo electrónico" placeholderTextColor="#aaa" style={styles.input} keyboardType="email-address" />
         <TextInput placeholder="Contraseña" placeholderTextColor="#aaa" secureTextEntry style={styles.input} />
       </View>
 
@@ -284,31 +280,28 @@ function VerifyScreen({ onBack }: { onBack: () => void }) {
         ¿No recibiste el código? <Text style={styles.link}>Reenviar</Text>
       </Text>
 
-      <Text style={[styles.link, { marginTop: 12 }]} onPress={onBack}>
-        ← Volver al inicio
-      </Text>
+      <Text style={[styles.link, { marginTop: 12 }]} onPress={onBack}>← Volver al inicio</Text>
     </View>
   );
 }
 
-/* -------------------------
-   Styles
-   ------------------------- */
+/* --------------------
+   ESTILOS
+   -------------------- */
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#ffffffff",
+    backgroundColor: "#fff",
     overflow: "hidden",
   },
   bgImage: {
     position: "absolute",
-    top: 95, // movido hacia arriba
-    left: 150,
-    opacity: 1,
+    top: 100,
+    left: -20,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0)",
+    backgroundColor: "rgba(0,0,0,0.08)",
   },
   container: {
     flex: 1,
@@ -318,32 +311,22 @@ const styles = StyleSheet.create({
   },
   card: {
     width: "90%",
-    backgroundColor: "rgba(255,255,255,0.95)",
+    backgroundColor: "rgba(255,255,255,0.98)",
     borderRadius: 20,
     padding: 24,
     shadowColor: "#000",
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.12,
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 8,
   },
-  formContainer: {
-    width: "100%",
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 6,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#6b7280",
-    marginBottom: 24,
-  },
-  inputContainer: {
-    width: "100%",
-    gap: 12,
-  },
+
+  /* Form */
+  formContainer: { width: "100%" },
+  title: { fontSize: 32, fontWeight: "700", color: "#111827", marginBottom: 6 },
+  subtitle: { fontSize: 16, color: "#6b7280", marginBottom: 24 },
+  header: { fontSize: 28, fontWeight: "700", marginBottom: 20, color: "#000" },
+  info: { fontSize: 14, color: "#555", marginBottom: 16 },
+  inputContainer: { width: "100%", gap: 12 },
   input: {
     backgroundColor: "#fff",
     borderRadius: 14,
@@ -362,29 +345,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 24,
   },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  footer: {
-    color: "#6b7280",
-    marginTop: 16,
-    textAlign: "center",
-  },
-  link: {
-    color: "#2563eb",
-    fontWeight: "600",
-  },
-  header: {
-    fontSize: 28,
-    fontWeight: "700",
-    marginBottom: 20,
-    color: "#000",
-  },
-  info: {
-    fontSize: 14,
-    color: "#555",
-    marginBottom: 16,
-  },
+  buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+
+  /* Footer / links */
+  footer: { color: "#6b7280", marginTop: 16, textAlign: "center" },
+  link: { color: "#2563eb", fontWeight: "600" },
 });
