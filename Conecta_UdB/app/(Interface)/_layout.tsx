@@ -24,7 +24,7 @@ export default function RootLayout(): React.ReactElement {
       screenOptions={{ headerShown: false }}
       tabBar={(props: BottomTabBarProps) => <CustomTabBar {...props} />}
     >
-      {/* Asegúrate de tener archivos: app/profile.tsx, app/home.tsx, app/notifications.tsx */}
+      {/* Archivos esperados: app/profile.tsx, app/home.tsx, app/notifications.tsx */}
       <Tabs.Screen name="profile" />
       <Tabs.Screen name="home" />
       <Tabs.Screen name="notifications" />
@@ -35,21 +35,11 @@ export default function RootLayout(): React.ReactElement {
 /* -----------------------
    Helpers
    ----------------------- */
-/**
- * Extrae la "base" del nombre de ruta que entrega expo-router.
- * Ejemplos:
- *  - "home" -> "home"
- *  - "(tabs)/home" -> "home"
- *  - "home/index" -> "index" (por eso hacemos pop y luego normalizamos)
- */
 function getBaseRouteName(routeName: string): string {
   if (!routeName) return "";
-  // eliminar query params después de '?'
   const clean = routeName.split("?")[0];
-  // tomar el último segmento después de '/'
   const parts = clean.split("/");
   const last = parts[parts.length - 1];
-  // si el último es 'index' y hay un penúltimo, preferimos el penúltimo
   if (last === "index" && parts.length > 1) return parts[parts.length - 2];
   return last;
 }
@@ -58,16 +48,16 @@ function getBaseRouteName(routeName: string): string {
    Barra personalizada
    ----------------------- */
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  // Índice de la pestaña que corresponde a "home"
   const centerIndex = useMemo(
-    () => state.routes.findIndex((r) => getBaseRouteName(r.name).toLowerCase() === "home"),
+    () =>
+      state.routes.findIndex(
+        (r) => getBaseRouteName(r.name).toLowerCase() === "home"
+      ),
     [state.routes]
   );
 
-  // Animación (scale) para el botón central
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Animar cuando la pestaña central está activa
   useEffect(() => {
     const isCenterFocused = state.index === centerIndex;
     Animated.spring(scaleAnim, {
@@ -78,16 +68,30 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     }).start();
   }, [state.index, centerIndex, scaleAnim]);
 
-  // Renderizado de botones
+  // 🔹 ORDEN FORZADO: perfil - home - notificaciones
+const orderedRoutes = [...state.routes].sort((a, b) => {
+  const order: Record<string, number> = { profile: 0, home: 1, notifications: 2 };
+
+  // obtenemos los nombres base
+  const nameA = getBaseRouteName(a.name).toLowerCase();
+  const nameB = getBaseRouteName(b.name).toLowerCase();
+
+  // si alguna ruta no está en el orden, se pone al final (Infinity)
+  const indexA = order[nameA] ?? Infinity;
+  const indexB = order[nameB] ?? Infinity;
+
+  return indexA - indexB;
+});
+
+
   return (
     <SafeAreaView edges={["bottom"]} style={styles.safeArea}>
       <View style={styles.tabBarContainer}>
-        {state.routes.map((route, index) => {
+        {orderedRoutes.map((route, index) => {
           const baseName = getBaseRouteName(route.name).toLowerCase();
-          const isFocused = state.index === index;
-          const isCenter = index === centerIndex;
+          const isFocused = state.index === state.routes.indexOf(route);
+          const isCenter = baseName === "home";
 
-          // Evento de press estándar
           const onPress = () => {
             const event = navigation.emit({
               type: "tabPress",
@@ -95,7 +99,6 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               canPreventDefault: true,
             });
             if (!isFocused && !event.defaultPrevented) {
-              // cast a any para compatibilidad con expo-router
               (navigation as any).navigate(route.name);
             }
           };
@@ -104,16 +107,20 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             navigation.emit({ type: "tabLongPress", target: route.key });
           };
 
-          // Mapear iconos de forma explícita por baseName
           let iconName: string;
-          if (baseName === "profile" || baseName === "perfil") iconName = isFocused ? "person" : "person-outline";
-          else if (baseName === "notifications" || baseName === "notificaciones") iconName = isFocused ? "notifications" : "notifications-outline";
+          if (baseName === "profile" || baseName === "perfil")
+            iconName = isFocused ? "person" : "person-outline";
+          else if (baseName === "notifications" || baseName === "notificaciones")
+            iconName = isFocused ? "notifications" : "notifications-outline";
           else iconName = isFocused ? "home" : "home-outline";
 
-          // Label legible
-          const label = baseName === "profile" ? "Perfil" : baseName === "notifications" ? "Alertas" : "Inicio";
+          const label =
+            baseName === "profile"
+              ? "Perfil"
+              : baseName === "notifications"
+              ? "Alertas"
+              : "Inicio";
 
-          // Cada botón ocupa la misma fracción de ancho (flex:1)
           return (
             <TouchableOpacity
               key={route.key}
@@ -126,20 +133,40 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               style={styles.tabFlex}
             >
               {isCenter ? (
-                // Botón central destacado (con scale animado)
-                <Animated.View style={[styles.centerWrapper, { transform: [{ translateY: -8 }, { scale: scaleAnim }] }]}>
-                  <View style={[styles.centerButton, isFocused && styles.centerButtonActive]}>
-                    <Ionicons name={iconName as any} size={28} color={isFocused ? "#fff" : "#0b5fff"} />
+                <Animated.View
+                  style={[
+                    styles.centerWrapper,
+                    { transform: [{ translateY: -8 }, { scale: scaleAnim }] },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.centerButton,
+                      isFocused && styles.centerButtonActive,
+                    ]}
+                  >
+                    <Ionicons
+                      name={iconName as any}
+                      size={28}
+                      color={isFocused ? "#fff" : "#0b5fff"}
+                    />
                   </View>
-                  <Text style={[styles.label, isFocused && styles.labelActive]}>{label}</Text>
+                  <Text style={[styles.label, isFocused && styles.labelActive]}>
+                    {label}
+                  </Text>
                 </Animated.View>
               ) : (
-                // Botón lateral
                 <View style={styles.sideWrapper}>
                   <View style={styles.sideButton}>
-                    <Ionicons name={iconName as any} size={22} color={isFocused ? "#0b5fff" : "#8892A6"} />
+                    <Ionicons
+                      name={iconName as any}
+                      size={22}
+                      color={isFocused ? "#0b5fff" : "#8892A6"}
+                    />
                   </View>
-                  <Text style={[styles.label, isFocused && styles.labelActive]}>{label}</Text>
+                  <Text style={[styles.label, isFocused && styles.labelActive]}>
+                    {label}
+                  </Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -160,6 +187,7 @@ const styles = StyleSheet.create({
   tabBarContainer: {
     flexDirection: "row",
     alignItems: "flex-end",
+    justifyContent: "space-around",
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: Platform.OS === "android" ? 14 : 18,
@@ -172,19 +200,15 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
-
-  // Cada botón ocupa la misma fracción (mejora la distribución)
   tabFlex: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-
   sideWrapper: {
     alignItems: "center",
     justifyContent: "center",
   },
-
   sideButton: {
     width: 48,
     height: 48,
@@ -192,13 +216,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   centerWrapper: {
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 6,
   },
-
   centerButton: {
     width: 76,
     height: 76,
@@ -214,18 +236,15 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 12,
   },
-
   centerButtonActive: {
     backgroundColor: "#0b5fff",
     borderColor: "#0b5fff",
   },
-
   label: {
     marginTop: 6,
     fontSize: 11,
     color: "#8892A6",
   },
-
   labelActive: {
     color: "#0b5fff",
     fontWeight: "600",
