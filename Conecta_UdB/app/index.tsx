@@ -35,6 +35,14 @@ const CONFIG = {
   },
 };
 
+type User = {
+  name: string;
+  email: string;
+  password: string;
+  verified: boolean;
+  verificationCode?: string;
+};
+
 const SCREENS = {
   LOGIN: "login",
   REGISTER: "register",
@@ -374,6 +382,27 @@ function VerifyScreen({
       </Text>
     </View>
   );
+}
+
+/* --------------------
+   STORAGE
+-------------------- */
+async function getUsers(): Promise<User[]> {
+  try {
+    const saved = await AsyncStorage.getItem("users");
+    return saved ? (JSON.parse(saved) as User[]) : [];
+  } catch (e) {
+    console.error("getUsers error", e);
+    return [];
+  }
+}
+
+async function saveUsers(users: User[]) {
+  try {
+    await AsyncStorage.setItem("users", JSON.stringify(users));
+  } catch (e) {
+    console.error("saveUsers error", e);
+  }
 }
 
 /* --------------------
