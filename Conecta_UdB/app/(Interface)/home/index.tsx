@@ -72,12 +72,12 @@ const initialEvents: Event[] = [
     place: "Auditorio Principal",
     interests: ["Moda", "Videojuegos"],
     attending: false,
-  }
+  },
 ];
 
 const allInterests = [
   "Animación",
-  "Moda",
+  "Narrativas Digitales",
   "Arte",
   "Música",
   "Tecnología",
@@ -89,7 +89,7 @@ const allInterests = [
   "Cine",
   "Educación",
   "Ciencia",
-  "Medio Ambiente",
+  "Sostenibilidad",
 ];
 
 export default function HomeScreen() {
@@ -149,7 +149,8 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Acordeón de intereses */}
+      <Text style={styles.title}>🏠 Conecta UdB</Text>
+
       <TouchableOpacity
         style={styles.accordionToggle}
         onPress={() => setIsInterestsOpen(!isInterestsOpen)}
@@ -200,6 +201,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F7FAFF",
     padding: 16,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: "700",
+    marginBottom: 12,
+    color: "#6b2b2b",
   },
   accordionToggle: {
     paddingVertical: 8,

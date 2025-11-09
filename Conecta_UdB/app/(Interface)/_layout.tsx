@@ -118,7 +118,7 @@ const orderedRoutes = [...state.routes].sort((a, b) => {
             baseName === "profile"
               ? "Perfil"
               : baseName === "notifications"
-              ? "Alertas"
+              ? "Notificaciones"
               : "Inicio";
 
           return (

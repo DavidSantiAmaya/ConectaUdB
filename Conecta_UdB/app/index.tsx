@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
   },
   formContainer: { width: "100%" },
   title: { fontSize: 32, fontWeight: "700", color: "#111827", marginBottom: 6 },
-  subtitle: { fontSize: 16, color: "#6b7280", marginBottom: 24 },
+  subtitle: { fontSize: 16, color: "#806b6bff", marginBottom: 24 },
   header: { fontSize: 28, fontWeight: "700", marginBottom: 20, color: "#000" },
   info: { fontSize: 14, color: "#555", marginBottom: 16 },
   input: {
@@ -439,13 +439,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   button: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#e20613",
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",
     marginTop: 24,
   },
   buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  footer: { color: "#6b7280", marginTop: 16, textAlign: "center" },
-  link: { color: "#2563eb", fontWeight: "600" },
+  footer: { color: "#806b6bff", marginTop: 16, textAlign: "center" },
+  link: { color: "#e20613", fontWeight: "600" },
 });
