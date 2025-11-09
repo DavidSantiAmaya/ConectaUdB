@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,74 +10,172 @@ import {
   Alert,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const PROFILE_KEY = "@conectaudb_profile";
+
+interface ProfileData {
+  name: string;
+  email: string;
+  career: string;
+  semester: string;
+  selectedInterests: string[];
+  aboutMe: string;
+}
+
+const maxSemestersPerCareer: Record<string, number> = {
+  "Medicina": 12,
+  "Enfermería": 8,
+  "Bacteriología y Laboratorio Clínico": 10,
+  "Terapia Respiratoria": 8,
+  "Fisioterapia": 9,
+  "Ingeniería Sanitaria": 9,
+  "Ingeniería Ambiental": 8,
+  "Ingeniería Industrial": 8,
+  "Ingeniería Civil": 8,
+  "Ingeniería en Multimedia": 9,
+  "Ingeniería de Sistemas": 9,
+  "Ingeniería Mecatrónica": 9,
+  "Psicología": 10,
+  "Licenciatura en Educación Infantil": 8,
+  "Diseño Gráfico": 8,
+  "Arquitectura": 9,
+  "Comunicación Social": 8,
+  "Derecho y Ciencias Políticas": 10,
+  "Administración de Negocios Internacionales": 8,
+  "Administración de Empresas": 8,
+  "Contaduría Pública": 8,
+};
+
+const ordinal = (n: number) => {
+  const ordinals = [
+    "Primer",
+    "Segundo",
+    "Tercer",
+    "Cuarto",
+    "Quinto",
+    "Sexto",
+    "Séptimo",
+    "Octavo",
+    "Noveno",
+    "Décimo",
+    "Undécimo",
+    "Duodécimo",
+  ];
+  return ordinals[n - 1] || `${n}º`;
+};
+
+const allInterests = [
+  "Animación",
+  "Moda",
+  "Arte",
+  "Música",
+  "Tecnología",
+  "Deportes",
+  "Literatura",
+  "Programación",
+  "Fotografía",
+  "Videojuegos",
+  "Cine",
+  "Educación",
+  "Ciencia",
+  "Medio Ambiente",
+];
 
 export default function ProfileScreen() {
-  // Estados para edición y campos
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState("David Santiago");
   const [email, setEmail] = useState("david@uniboyaca.edu.co");
-
-  // Estado para mostrar/ocultar acordeón de carreras y semestres
   const [isCareerOpen, setIsCareerOpen] = useState(false);
   const [isSemesterOpen, setIsSemesterOpen] = useState(false);
 
-  // Listas de opciones
-  const carreras = [
-    "Medicina",
-    "Enfermería",
-    "Bacteriología y Laboratorio Clínico",
-    "Terapia Respiratoria",
-    "Fisioterapia",
-    "Ingeniería Sanitaria",
-    "Ingeniería Ambiental",
-    "Ingeniería Industrial",
-    "Ingeniería Civil",
-    "Ingeniería en Multimedia",
-    "Ingeniería de Sistemas",
-    "Ingeniería Mecatrónica",
-    "Psicología",
-    "Licenciatura en Educación Infantil",
-    "Diseño Gráfico",
-    "Arquitectura",
-    "Comunicación Social",
-    "Derecho y Ciencias Políticas",
-    "Administración de Negocios Internacionales",
-    "Administración de Empresas",
-    "Contaduría Pública",
-  ];
-  const semesters = [
-    "Primer Semestre",
-    "Segundo Semestre",
-    "Tercer Semestre",
-    "Cuarto Semestre",
-    "Quinto Semestre",
-    "Sexto Semestre",
-    "Séptimo Semestre",
-    "Octavo Semestre",
-    "Noveno Semestre",
-    "Décimo Semestre",
-    "Undécimo Semestre",
-    "Duodécimo Semestre"
-  ];
+  const carreras = Object.keys(maxSemestersPerCareer);
+
+  const generateSemestersForCareer = (career: string) => {
+    const maxSem = maxSemestersPerCareer[career] || 8;
+    const semesters = [];
+    for (let i = 1; i <= maxSem; i++) {
+      semesters.push(`${ordinal(i)} Semestre`);
+    }
+    return semesters;
+  };
 
   const [career, setCareer] = useState("Ingeniería en Multimedia");
+  const [semesters, setSemesters] = useState(generateSemestersForCareer(career));
   const [semester, setSemester] = useState("Sexto Semestre");
-  const [interests, setInterests] = useState("Animación, Narrativas Digitales, Arte");
+
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [aboutMe, setAboutMe] = useState(
     "Soy un apasionado por la animación y las narrativas digitales. Me gusta crear, aprender y compartir con otros artistas."
   );
 
+  useEffect(() => {
+    loadProfileLocal();
+  }, []);
+
+  const loadProfileLocal = async () => {
+    try {
+      const json = await AsyncStorage.getItem(PROFILE_KEY);
+      if (json != null) {
+        const savedProfile: ProfileData = JSON.parse(json);
+        setName(savedProfile.name || "");
+        setEmail(savedProfile.email || "");
+        setCareer(savedProfile.career || "Ingeniería en Multimedia");
+        const semestersForCareer = generateSemestersForCareer(savedProfile.career || "Ingeniería en Multimedia");
+        setSemesters(semestersForCareer);
+        setSemester(savedProfile.semester || semestersForCareer[0]);
+        setSelectedInterests(savedProfile.selectedInterests || []);
+        setAboutMe(savedProfile.aboutMe || "");
+      }
+    } catch (e) {
+      console.error("Error loading profile data:", e);
+    }
+  };
+
+  const saveProfileLocal = async (profileData: ProfileData) => {
+    try {
+      const json = JSON.stringify(profileData);
+      await AsyncStorage.setItem(PROFILE_KEY, json);
+    } catch (e) {
+      console.error("Error saving profile data:", e);
+    }
+  };
+
+  function toggleInterest(interest: string) {
+    if (selectedInterests.includes(interest)) {
+      setSelectedInterests(selectedInterests.filter((i) => i !== interest));
+    } else if (selectedInterests.length >= 3) {
+      Alert.alert("Límite máximo", "Solo puedes seleccionar hasta 3 intereses.");
+    } else {
+      setSelectedInterests([...selectedInterests, interest]);
+    }
+  }
+
+  const onCareerSelect = (newCareer: string) => {
+    setCareer(newCareer);
+    const newSemesters = generateSemestersForCareer(newCareer);
+    setSemesters(newSemesters);
+    setIsCareerOpen(false);
+    setIsSemesterOpen(false);
+    setSemester(newSemesters[0]);
+  };
+
   const saveProfile = () => {
+    const profileData: ProfileData = {
+      name,
+      email,
+      career,
+      semester,
+      selectedInterests,
+      aboutMe,
+    };
+    saveProfileLocal(profileData);
     Alert.alert("Perfil actualizado", "Tus datos han sido guardados");
     setIsEditing(false);
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ alignItems: "center" }}
-    >
-      {/* Header con avatar e iconos */}
+    <ScrollView style={styles.container} contentContainerStyle={{ alignItems: "center" }}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.editButton}
@@ -88,7 +186,7 @@ export default function ProfileScreen() {
 
         <View style={styles.avatarContainer}>
           <Image
-            source={{ uri: "https://placehold.co/100x100/0b5fff/ffffff?text=U" }}
+            source={{ uri: "https://i.pinimg.com/564x/7a/79/ac/7a79ac0cdd39e39d9b1ee8360341d49b.jpg" }}
             style={styles.avatar}
           />
           {isEditing && (
@@ -98,76 +196,45 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {isEditing ? (
-          <>
-            <TextInput
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder="Nombre completo"
-              placeholderTextColor="#eee"
-            />
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Correo institucional"
-              keyboardType="email-address"
-              placeholderTextColor="#eee"
-            />
-          </>
-        ) : (
-          <>
-            <Text style={styles.name}>{name}</Text>
-            <Text style={styles.email}>{email}</Text>
-          </>
-        )}
+        {/* Nombre y correo como texto estático */}
+        <Text style={styles.name}>{name}</Text>
+        <Text style={styles.email}>{email}</Text>
       </View>
 
-      {/* Programa y Semestre Académico con acordeones */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Programa y Semestre Académico</Text>
         {isEditing ? (
           <>
-            <TouchableOpacity
-              style={styles.input}
-              onPress={() => setIsCareerOpen(!isCareerOpen)}
-            >
-              <Text style={{ color: "#fff" }}>{career}</Text>
+            <TouchableOpacity style={styles.input} onPress={() => setIsCareerOpen(!isCareerOpen)}>
+              <Text style={{ color: "#000000ff" }}>{career}</Text>
             </TouchableOpacity>
 
             {isCareerOpen &&
-              carreras.map((carrera) => (
+              carreras.map((c) => (
                 <TouchableOpacity
-                  key={carrera}
-                  style={[styles.input, { backgroundColor: "#0a4af7", marginVertical: 2 }]}
-                  onPress={() => {
-                    setCareer(carrera);
-                    setIsCareerOpen(false);
-                  }}
+                  key={c}
+                  style={[styles.input, { backgroundColor: "#b8b8b886", marginVertical: 2 }]}
+                  onPress={() => onCareerSelect(c)}
                 >
-                  <Text style={{ color: "#fff" }}>{carrera}</Text>
+                  <Text style={{ color: "#000000ff" }}>{c}</Text>
                 </TouchableOpacity>
               ))}
 
-            <TouchableOpacity
-              style={styles.input}
-              onPress={() => setIsSemesterOpen(!isSemesterOpen)}
-            >
-              <Text style={{ color: "#fff" }}>{semester}</Text>
+            <TouchableOpacity style={styles.input} onPress={() => setIsSemesterOpen(!isSemesterOpen)}>
+              <Text style={{ color: "#000000ff" }}>{semester}</Text>
             </TouchableOpacity>
 
             {isSemesterOpen &&
               semesters.map((sem) => (
                 <TouchableOpacity
                   key={sem}
-                  style={[styles.input, { backgroundColor: "#0a4af7", marginVertical: 2 }]}
+                  style={[styles.input, { backgroundColor: "#b8b8b886", marginVertical: 2 }]}
                   onPress={() => {
                     setSemester(sem);
                     setIsSemesterOpen(false);
                   }}
                 >
-                  <Text style={{ color: "#fff" }}>{sem}</Text>
+                  <Text style={{ color: "#000000ff" }}>{sem}</Text>
                 </TouchableOpacity>
               ))}
           </>
@@ -178,23 +245,37 @@ export default function ProfileScreen() {
         )}
       </View>
 
-      {/* Intereses */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Intereses</Text>
         {isEditing ? (
-          <TextInput
-            style={[styles.input, { height: 60 }]}
-            value={interests}
-            onChangeText={setInterests}
-            placeholder="Escribe tus intereses"
-            multiline
-          />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 10 }}>
+            {allInterests.map((interest) => {
+              const selected = selectedInterests.includes(interest);
+              return (
+                <TouchableOpacity
+                  key={interest}
+                  onPress={() => toggleInterest(interest)}
+                  style={{
+                    backgroundColor: selected ? "#e20613" : "#ddd",
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    borderRadius: 20,
+                    marginRight: 8,
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text style={{ color: selected ? "white" : "#333" }}>{interest}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         ) : (
-          <Text style={styles.sectionText}>{interests}</Text>
+          <Text style={styles.sectionText}>
+            {selectedInterests.length > 0 ? selectedInterests.join(", ") : "No has seleccionado intereses"}
+          </Text>
         )}
       </View>
 
-      {/* Sobre mí */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Sobre mí</Text>
         {isEditing ? (
@@ -210,11 +291,10 @@ export default function ProfileScreen() {
         )}
       </View>
 
-      {/* Estadísticas */}
       <View style={styles.statsContainer}>
         {[
           { label: "Grupos", value: "0" },
-          { label: "Intereses", value: "5" },
+          { label: "Intereses", value: selectedInterests.length.toString() },
           { label: "Confirmaciones", value: "0" },
         ].map((item, index) => (
           <View key={index} style={styles.statCard}>
@@ -230,7 +310,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f9fbff" },
   header: {
-    backgroundColor: "#0b5fff",
+    backgroundColor: "#e20615ea",
     alignItems: "center",
     paddingTop: 60,
     paddingBottom: 30,
@@ -276,13 +356,13 @@ const styles = StyleSheet.create({
     color: "#222",
     marginBottom: 6,
   },
-  sectionText: { color: "#555", lineHeight: 20 },
+  sectionText: { color: "#00000086", lineHeight: 20 },
   input: {
-    backgroundColor: "#0b5fff88",
+    backgroundColor: "#b8b8b886",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    color: "#fff",
+    color: "#5b5b5bff",
     fontWeight: "600",
   },
   statsContainer: {
@@ -300,6 +380,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     elevation: 3,
   },
-  statValue: { fontSize: 20, fontWeight: "700", color: "#0b5fff" },
+  statValue: { fontSize: 20, fontWeight: "700", color: "#e20613" },
   statLabel: { color: "#555", marginTop: 4, fontSize: 13 },
 });

@@ -148,7 +148,7 @@ const orderedRoutes = [...state.routes].sort((a, b) => {
                     <Ionicons
                       name={iconName as any}
                       size={28}
-                      color={isFocused ? "#fff" : "#0b5fff"}
+                      color={isFocused ? "#fff" : "#e20613"}
                     />
                   </View>
                   <Text style={[styles.label, isFocused && styles.labelActive]}>
@@ -161,7 +161,7 @@ const orderedRoutes = [...state.routes].sort((a, b) => {
                     <Ionicons
                       name={iconName as any}
                       size={22}
-                      color={isFocused ? "#0b5fff" : "#8892A6"}
+                      color={isFocused ? "#e20613" : "#db9797ff"}
                     />
                   </View>
                   <Text style={[styles.label, isFocused && styles.labelActive]}>
@@ -230,15 +230,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 4,
     borderColor: "#e6eefb",
-    shadowColor: "#0b5fff",
+    shadowColor: "#e20613",
     shadowOpacity: 0.18,
     shadowOffset: { width: 0, height: 6 },
     shadowRadius: 14,
     elevation: 12,
   },
   centerButtonActive: {
-    backgroundColor: "#0b5fff",
-    borderColor: "#0b5fff",
+    backgroundColor: "#e20613",
+    borderColor: "#e20613",
   },
   label: {
     marginTop: 6,
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     color: "#8892A6",
   },
   labelActive: {
-    color: "#0b5fff",
+    color: "#e20613",
     fontWeight: "600",
   },
 });
