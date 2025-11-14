@@ -1,5 +1,5 @@
-// app/_layout.tsx
-import React, { useEffect, useMemo, useRef } from "react";
+// app/(Interface)/_layout.tsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Tabs } from "expo-router";
 import {
   StyleSheet,
@@ -12,29 +12,24 @@ import {
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-/**
- * RootLayout principal para Expo Router
- * - Define 3 pestañas: profile, home, notifications
- * - Usa CustomTabBar para la barra inferior personalizada
- */
 export default function RootLayout(): React.ReactElement {
   return (
-    <Tabs
-      screenOptions={{ headerShown: false }}
-      tabBar={(props: BottomTabBarProps) => <CustomTabBar {...props} />}
-    >
-      {/* Archivos esperados: app/profile.tsx, app/home.tsx, app/notifications.tsx */}
-      <Tabs.Screen name="profile" />
-      <Tabs.Screen name="home" />
-      <Tabs.Screen name="notifications" />
+    <Tabs tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
+      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ title: "Perfil" }} />
+      <Tabs.Screen name="home" options={{ title: "Inicio" }} />
+      <Tabs.Screen name="notifications" options={{ title: "Notificaciones" }} />
+      <Tabs.Screen name="admin" options={{ title: "Admin" }} />
+      <Tabs.Screen name="user-profile" options={{ href: null }} />
     </Tabs>
   );
 }
 
 /* -----------------------
    Helpers
-   ----------------------- */
+----------------------- */
 function getBaseRouteName(routeName: string): string {
   if (!routeName) return "";
   const clean = routeName.split("?")[0];
@@ -46,13 +41,28 @@ function getBaseRouteName(routeName: string): string {
 
 /* -----------------------
    Barra personalizada
-   ----------------------- */
+----------------------- */
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    checkIfAdmin();
+  }, []);
+
+  const checkIfAdmin = async () => {
+    try {
+      const currentUserJson = await AsyncStorage.getItem("currentUser");
+      if (currentUserJson) {
+        const currentUser = JSON.parse(currentUserJson);
+        setIsAdmin(currentUser.isAdmin || false);
+      }
+    } catch (e) {
+      console.error("Error checking admin:", e);
+    }
+  };
+
   const centerIndex = useMemo(
-    () =>
-      state.routes.findIndex(
-        (r) => getBaseRouteName(r.name).toLowerCase() === "home"
-      ),
+    () => state.routes.findIndex((r) => getBaseRouteName(r.name).toLowerCase() === "home"),
     [state.routes]
   );
 
@@ -68,26 +78,32 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     }).start();
   }, [state.index, centerIndex, scaleAnim]);
 
-  // 🔹 ORDEN FORZADO: perfil - home - notificaciones
-const orderedRoutes = [...state.routes].sort((a, b) => {
-  const order: Record<string, number> = { profile: 0, home: 1, notifications: 2 };
+  // 🔥 ORDEN FORZADO SEGÚN ROL
+  const orderedRoutes = [...state.routes]
+    .filter((route) => {
+      const baseName = getBaseRouteName(route.name).toLowerCase();
+      // Ocultar rutas que no corresponden al rol
+      if (isAdmin) {
+        return ["admin", "home", "notifications"].includes(baseName);
+      } else {
+        return ["profile", "home", "notifications"].includes(baseName);
+      }
+    })
+    .sort((a, b) => {
+      const order: Record<string, number> = isAdmin ? { admin: 0, home: 1, notifications: 2 } : { profile: 0, home: 1, notifications: 2 };
 
-  // obtenemos los nombres base
-  const nameA = getBaseRouteName(a.name).toLowerCase();
-  const nameB = getBaseRouteName(b.name).toLowerCase();
+      const nameA = getBaseRouteName(a.name).toLowerCase();
+      const nameB = getBaseRouteName(b.name).toLowerCase();
 
-  // si alguna ruta no está en el orden, se pone al final (Infinity)
-  const indexA = order[nameA] ?? Infinity;
-  const indexB = order[nameB] ?? Infinity;
-
-  return indexA - indexB;
-});
-
+      const indexA = order[nameA] ?? Infinity;
+      const indexB = order[nameB] ?? Infinity;
+      return indexA - indexB;
+    });
 
   return (
     <SafeAreaView edges={["bottom"]} style={styles.safeArea}>
       <View style={styles.tabBarContainer}>
-        {orderedRoutes.map((route, index) => {
+        {orderedRoutes.map((route) => {
           const baseName = getBaseRouteName(route.name).toLowerCase();
           const isFocused = state.index === state.routes.indexOf(route);
           const isCenter = baseName === "home";
@@ -98,6 +114,7 @@ const orderedRoutes = [...state.routes].sort((a, b) => {
               target: route.key,
               canPreventDefault: true,
             });
+
             if (!isFocused && !event.defaultPrevented) {
               (navigation as any).navigate(route.name);
             }
@@ -108,68 +125,42 @@ const orderedRoutes = [...state.routes].sort((a, b) => {
           };
 
           let iconName: string;
-          if (baseName === "profile" || baseName === "perfil")
-            iconName = isFocused ? "person" : "person-outline";
-          else if (baseName === "notifications" || baseName === "notificaciones")
-            iconName = isFocused ? "notifications" : "notifications-outline";
-          else iconName = isFocused ? "home" : "home-outline";
+          let label: string;
 
-          const label =
-            baseName === "profile"
-              ? "Perfil"
-              : baseName === "notifications"
-              ? "Notificaciones"
-              : "Inicio";
+          if (baseName === "profile") {
+            iconName = isFocused ? "person" : "person-outline";
+            label = "Perfil";
+          } else if (baseName === "admin") {
+            iconName = isFocused ? "shield" : "shield-outline";
+            label = "Admin";
+          } else if (baseName === "notifications") {
+            iconName = isFocused ? "notifications" : "notifications-outline";
+            label = "Notificaciones";
+          } else {
+            iconName = isFocused ? "home" : "home-outline";
+            label = "Inicio";
+          }
 
           return (
-            <TouchableOpacity
-              key={route.key}
-              accessibilityRole="button"
-              accessibilityLabel={label}
-              accessibilityState={isFocused ? { selected: true } : {}}
-              onPress={onPress}
-              onLongPress={onLongPress}
-              activeOpacity={0.85}
-              style={styles.tabFlex}
-            >
+            <View key={route.key} style={styles.tabFlex}>
               {isCenter ? (
-                <Animated.View
-                  style={[
-                    styles.centerWrapper,
-                    { transform: [{ translateY: -8 }, { scale: scaleAnim }] },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.centerButton,
-                      isFocused && styles.centerButtonActive,
-                    ]}
-                  >
-                    <Ionicons
-                      name={iconName as any}
-                      size={28}
-                      color={isFocused ? "#fff" : "#e20613"}
-                    />
-                  </View>
-                  <Text style={[styles.label, isFocused && styles.labelActive]}>
-                    {label}
-                  </Text>
-                </Animated.View>
+                <View style={styles.centerWrapper}>
+                  <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                    <TouchableOpacity onPress={onPress} onLongPress={onLongPress} style={[styles.centerButton, isFocused && styles.centerButtonActive]}>
+                      <Ionicons name={iconName as any} size={30} color={isFocused ? "#fff" : "#e20613"} />
+                    </TouchableOpacity>
+                  </Animated.View>
+                  <Text style={[styles.label, isFocused && styles.labelActive]}>{label}</Text>
+                </View>
               ) : (
                 <View style={styles.sideWrapper}>
-                  <View style={styles.sideButton}>
-                    <Ionicons
-                      name={iconName as any}
-                      size={22}
-                      color={isFocused ? "#e20613" : "#db9797ff"}
-                    />
-                  </View>
-                  <Text style={[styles.label, isFocused && styles.labelActive]}>
-                    {label}
-                  </Text>
+                  <TouchableOpacity onPress={onPress} onLongPress={onLongPress} style={styles.sideButton}>
+                    <Ionicons name={iconName as any} size={24} color={isFocused ? "#e20613" : "#8892A6"} />
+                  </TouchableOpacity>
+                  <Text style={[styles.label, isFocused && styles.labelActive]}>{label}</Text>
                 </View>
               )}
-            </TouchableOpacity>
+            </View>
           );
         })}
       </View>
@@ -179,7 +170,7 @@ const orderedRoutes = [...state.routes].sort((a, b) => {
 
 /* -----------------------
    Estilos
-   ----------------------- */
+----------------------- */
 const styles = StyleSheet.create({
   safeArea: {
     backgroundColor: "transparent",

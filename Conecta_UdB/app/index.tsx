@@ -1,4 +1,5 @@
-import React, { useState, useRef, useCallback, JSX } from "react";
+// app/index.tsx
+import React, { useState, useRef, useCallback, JSX, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,12 +10,12 @@ import {
   Easing,
   Dimensions,
   Alert,
+  Image,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
 const BG = require("../assets/images/Logo_udb.png");
-
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get("window");
 
 const CONFIG = {
@@ -40,6 +41,7 @@ type User = {
   email: string;
   password: string;
   verified: boolean;
+  isAdmin?: boolean;
   verificationCode?: string;
 };
 
@@ -51,15 +53,57 @@ const SCREENS = {
 
 type ScreenKey = typeof SCREENS[keyof typeof SCREENS];
 
+// 👤 USUARIOS PREDEFINIDOS
+const PREDEFINED_USERS: User[] = [
+  {
+    name: "David Santiago",
+    email: "dsamaya@uniboyaca.edu.co",
+    password: "123123",
+    verified: true,
+    isAdmin: false,
+  },
+  {
+    name: "Administrador",
+    email: "admin@uniboyaca.edu.co",
+    password: "123456", // CORRECCIÓN: 123456
+    verified: true,
+    isAdmin: true,
+  },
+];
+
 export default function App(): JSX.Element {
   const router = useRouter();
   const [screen, setScreen] = useState<ScreenKey>(SCREENS.LOGIN);
-  const [tempUser, setTempUser] = useState<any>(null);
+  const [tempUser, setTempUser] = useState<User | null>(null);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
   const bgTranslateX = useRef(new Animated.Value(CONFIG.bg.initialX)).current;
   const bgTranslateY = useRef(new Animated.Value(0)).current;
+
+  // Inicializar usuarios predefinidos en AsyncStorage si no existen
+  useEffect(() => {
+    initializePredefinedUsers();
+  }, []);
+
+  const initializePredefinedUsers = async () => {
+    try {
+      const saved = await AsyncStorage.getItem("users");
+      let users: User[] = saved ? JSON.parse(saved) : [];
+
+      // Agregar usuarios predefinidos si no existen
+      PREDEFINED_USERS.forEach((predefinedUser) => {
+        const exists = users.find((u) => u.email === predefinedUser.email);
+        if (!exists) {
+          users.push(predefinedUser);
+        }
+      });
+
+      await AsyncStorage.setItem("users", JSON.stringify(users));
+    } catch (e) {
+      console.error("Error initializing predefined users:", e);
+    }
+  };
 
   const animateBackground = useCallback(
     (toX: number, toY: number, duration = CONFIG.bg.moveDuration) => {
@@ -115,6 +159,7 @@ export default function App(): JSX.Element {
             ? -SLIDE_LARGE
             : SLIDE_LARGE
         );
+
         Animated.parallel([
           Animated.spring(slideAnim, {
             toValue: 0,
@@ -156,9 +201,7 @@ export default function App(): JSX.Element {
   );
 
   const getTransform = () =>
-    screen === SCREENS.VERIFY
-      ? [{ translateY: slideAnim }]
-      : [{ translateX: slideAnim }];
+    screen === SCREENS.VERIFY ? [{ translateY: slideAnim }] : [{ translateX: slideAnim }];
 
   return (
     <View style={styles.root}>
@@ -167,25 +210,15 @@ export default function App(): JSX.Element {
         style={[
           styles.bgImage,
           {
-            transform: [
-              { translateX: bgTranslateX },
-              { translateY: bgTranslateY },
-              { scale: 1.05 },
-            ],
+            transform: [{ translateX: bgTranslateX }, { translateY: bgTranslateY }],
           },
         ]}
-        resizeMode="cover"
       />
-      <View style={styles.overlay} pointerEvents="none" />
+      <View style={styles.overlay} />
       <View style={styles.container}>
-        <Animated.View
-          style={[styles.card, { transform: getTransform(), opacity: opacityAnim }]}
-        >
+        <Animated.View style={[styles.card, { opacity: opacityAnim, transform: getTransform() }]}>
           {screen === SCREENS.LOGIN && (
-            <LoginScreen
-              onRegister={() => changeScreen(SCREENS.REGISTER)}
-              onSuccess={() => router.push("/home")}
-            />
+            <LoginScreen onRegister={() => changeScreen(SCREENS.REGISTER)} onSuccess={() => router.push("/(Interface)/home")} />
           )}
           {screen === SCREENS.REGISTER && (
             <RegisterScreen
@@ -197,11 +230,7 @@ export default function App(): JSX.Element {
             />
           )}
           {screen === SCREENS.VERIFY && (
-            <VerifyScreen
-              user={tempUser}
-              onSuccess={() => router.push("/home")}
-              onBack={() => changeScreen(SCREENS.LOGIN)}
-            />
+            <VerifyScreen user={tempUser} onSuccess={() => router.push("/(Interface)/home")} onBack={() => changeScreen(SCREENS.LOGIN)} />
           )}
         </Animated.View>
       </View>
@@ -212,13 +241,7 @@ export default function App(): JSX.Element {
 /* --------------------
    LOGIN
 -------------------- */
-function LoginScreen({
-  onRegister,
-  onSuccess,
-}: {
-  onRegister: () => void;
-  onSuccess: () => void;
-}) {
+function LoginScreen({ onRegister, onSuccess }: { onRegister: () => void; onSuccess: () => void; }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -227,36 +250,40 @@ function LoginScreen({
       Alert.alert("Error", "Solo se permiten correos @uniboyaca.edu.co");
       return;
     }
-    if (email === "admin@uniboyaca.edu.co" && password === "12345") {
+
+    try {
+      const saved = await AsyncStorage.getItem("users");
+      const users: User[] = saved ? JSON.parse(saved) : [];
+
+      // buscar usuario (incluye usuarios predefinidos que inicializamos)
+      const found = users.find((u: User) => u.email === email && u.password === password);
+
+      if (!found) {
+        Alert.alert("Error", "Usuario o contraseña incorrectos");
+        return;
+      }
+
+      if (!found.verified) {
+        Alert.alert("Aviso", "Verifica tu cuenta antes de ingresar");
+        return;
+      }
+
+      // 🔥 GUARDAR SESIÓN ACTUAL
+      await AsyncStorage.setItem("currentUser", JSON.stringify(found));
+
       onSuccess();
-      return;
+    } catch (e) {
+      console.error("Login error:", e);
+      Alert.alert("Error", "Ocurrió un error al iniciar sesión");
     }
-    const saved = await AsyncStorage.getItem("users");
-    const users = saved ? JSON.parse(saved) : [];
-    const found = users.find((u: any) => u.email === email && u.password === password);
-    if (!found) return Alert.alert("Error", "Usuario o contraseña incorrectos");
-    if (!found.verified) return Alert.alert("Aviso", "Verifica tu cuenta antes de ingresar");
-    onSuccess();
   };
 
   return (
     <View style={styles.formContainer}>
       <Text style={styles.title}>Bienvenido</Text>
       <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
-      <TextInput
-        placeholder="Correo electrónico"
-        value={email}
-        onChangeText={setEmail}
-        style={styles.input}
-        keyboardType="email-address"
-      />
-      <TextInput
-        placeholder="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
-      />
+      <TextInput style={styles.input} placeholder="Correo" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+      <TextInput style={styles.input} placeholder="Contraseña" value={password} onChangeText={setPassword} secureTextEntry />
       <TouchableOpacity style={styles.button} onPress={handleLogin}>
         <Text style={styles.buttonText}>Ingresar</Text>
       </TouchableOpacity>
@@ -273,56 +300,49 @@ function LoginScreen({
 /* --------------------
    REGISTER
 -------------------- */
-function RegisterScreen({
-  onNext,
-  onBack,
-}: {
-  onNext: (user: any) => void;
-  onBack: () => void;
-}) {
+function RegisterScreen({ onNext, onBack }: { onNext: (user: User) => void; onBack: () => void; }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const handleRegister = async () => {
-    if (!email.endsWith("@uniboyaca.edu.co"))
-      return Alert.alert("Error", "Usa un correo @uniboyaca.edu.co");
+    if (!name || !email || !password) {
+      Alert.alert("Error", "Completa todos los campos");
+      return;
+    }
 
-    const saved = await AsyncStorage.getItem("users");
-    const users = saved ? JSON.parse(saved) : [];
-    if (users.find((u: any) => u.email === email))
-      return Alert.alert("Error", "Este correo ya está registrado");
+    if (!email.endsWith("@uniboyaca.edu.co")) {
+      Alert.alert("Error", "Usa un correo @uniboyaca.edu.co");
+      return;
+    }
 
-    const newUser = { name, email, password, verified: false };
-    users.push(newUser);
-    await AsyncStorage.setItem("users", JSON.stringify(users));
+    try {
+      const saved = await AsyncStorage.getItem("users");
+      const users: User[] = saved ? JSON.parse(saved) : [];
 
-    Alert.alert("Código enviado", "Tu código de verificación es 789456 (demo)");
-    onNext(newUser);
+      if (users.find((u: User) => u.email === email)) {
+        Alert.alert("Error", "Este correo ya está registrado");
+        return;
+      }
+
+      const newUser: User = { name, email, password, verified: false };
+      users.push(newUser);
+      await AsyncStorage.setItem("users", JSON.stringify(users));
+
+      Alert.alert("Código enviado", "Tu código de verificación es 789456 (demo)");
+      onNext(newUser);
+    } catch (e) {
+      console.error("Register error:", e);
+      Alert.alert("Error", "Ocurrió un error al registrar");
+    }
   };
 
   return (
     <View style={styles.formContainer}>
-      <Text style={styles.header}>Crear Cuenta</Text>
-      <TextInput
-        placeholder="Nombre completo"
-        value={name}
-        onChangeText={setName}
-        style={styles.input}
-      />
-      <TextInput
-        placeholder="Correo electrónico"
-        value={email}
-        onChangeText={setEmail}
-        style={styles.input}
-      />
-      <TextInput
-        placeholder="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
-      />
+      <Text style={styles.title}>Crear Cuenta</Text>
+      <TextInput style={styles.input} placeholder="Nombre completo" value={name} onChangeText={setName} />
+      <TextInput style={styles.input} placeholder="Correo" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+      <TextInput style={styles.input} placeholder="Contraseña" value={password} onChangeText={setPassword} secureTextEntry />
       <TouchableOpacity style={styles.button} onPress={handleRegister}>
         <Text style={styles.buttonText}>Registrarse</Text>
       </TouchableOpacity>
@@ -339,70 +359,54 @@ function RegisterScreen({
 /* --------------------
    VERIFY
 -------------------- */
-function VerifyScreen({
-  user,
-  onSuccess,
-  onBack,
-}: {
-  user: any;
-  onSuccess: () => void;
-  onBack: () => void;
-}) {
+function VerifyScreen({ user, onSuccess, onBack }: { user: User | null; onSuccess: () => void; onBack: () => void; }) {
   const [code, setCode] = useState("");
 
   const handleVerify = async () => {
-    if (code !== "789456") return Alert.alert("Error", "Código incorrecto");
+    if (code !== "789456") {
+      Alert.alert("Error", "Código incorrecto");
+      return;
+    }
 
-    const saved = await AsyncStorage.getItem("users");
-    const users = saved ? JSON.parse(saved) : [];
-    const idx = users.findIndex((u: any) => u.email === user.email);
-    if (idx >= 0) users[idx].verified = true;
-    await AsyncStorage.setItem("users", JSON.stringify(users));
-    Alert.alert("Cuenta verificada", "Tu cuenta ha sido activada");
-    onSuccess();
+    if (!user) {
+      Alert.alert("Error", "Usuario no encontrado");
+      return;
+    }
+
+    try {
+      const saved = await AsyncStorage.getItem("users");
+      const users: User[] = saved ? JSON.parse(saved) : [];
+
+      const idx = users.findIndex((u: User) => u.email === user.email);
+      if (idx >= 0) {
+        users[idx].verified = true;
+        await AsyncStorage.setItem("users", JSON.stringify(users));
+
+        // 🔥 GUARDAR SESIÓN ACTUAL
+        await AsyncStorage.setItem("currentUser", JSON.stringify(users[idx]));
+
+        Alert.alert("Cuenta verificada", "Tu cuenta ha sido activada");
+        onSuccess();
+      }
+    } catch (e) {
+      console.error("Verify error:", e);
+      Alert.alert("Error", "Ocurrió un error al verificar");
+    }
   };
 
   return (
     <View style={styles.formContainer}>
       <Text style={styles.header}>Verificar Código</Text>
       <Text style={styles.info}>Se envió un código a tu correo.</Text>
-      <TextInput
-        placeholder="Ingresa el código"
-        value={code}
-        onChangeText={setCode}
-        style={styles.input}
-        keyboardType="numeric"
-        maxLength={6}
-      />
+      <TextInput style={styles.input} placeholder="Código" value={code} onChangeText={setCode} keyboardType="number-pad" />
       <TouchableOpacity style={styles.button} onPress={handleVerify}>
         <Text style={styles.buttonText}>Confirmar</Text>
       </TouchableOpacity>
-      <Text style={[styles.link, { marginTop: 12 }]} onPress={onBack}>
-        ← Volver al inicio
-      </Text>
+      <TouchableOpacity onPress={onBack}>
+        <Text style={styles.link}>← Volver al inicio</Text>
+      </TouchableOpacity>
     </View>
   );
-}
-
-/* --------------------
-   STORAGE
--------------------- */
-async function getUsers(): Promise<User[]> {
-  try {
-    const saved = await AsyncStorage.getItem("users");
-    return saved ? (JSON.parse(saved) as User[]) : [];
-  } catch (e) {
-    console.error("getUsers error", e);
-    return [];
-  }
-}
-
-async function saveUsers(users: User[]) {
-  try {
-    await AsyncStorage.setItem("users", JSON.stringify(users));
-  } catch (e) {
-    console.error("saveUsers error", e);
-  }
 }
 
 /* --------------------
@@ -411,8 +415,16 @@ async function saveUsers(users: User[]) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#fff", overflow: "hidden" },
   bgImage: { position: "absolute", top: 100, left: -20 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.08)" },
-  container: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.08)",
+  },
+  container: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
   card: {
     width: "90%",
     backgroundColor: "rgba(255,255,255,0.98)",
