@@ -14,6 +14,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 
 const PROFILE_KEY = "@conectaudb_profile";
 const USERS_KEY = "users";
@@ -21,13 +22,9 @@ const CURRENT_USER_KEY = "currentUser";
 
 const DEFAULT_IMAGES = [
   "https://i.pinimg.com/564x/7a/79/ac/7a79ac0cdd39e39d9b1ee8360341d49b.jpg",
-
   "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg",
-
   "https://images.pexels.com/photos/4587995/pexels-photo-4587995.jpeg",
-
-  "https://images.pexels.com/photos/1548665/pexels-photo-1548665.jpeg"
-  // puedes agregar más URLs aquí
+  "https://images.pexels.com/photos/1548665/pexels-photo-1548665.jpeg",
 ];
 
 interface ProfileData {
@@ -144,7 +141,18 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     loadCurrentUser();
+    requestPermissions();
   }, []);
+
+  const requestPermissions = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permisos necesarios",
+        "Se requieren permisos para acceder a tu galería de fotos."
+      );
+    }
+  };
 
   const loadCurrentUser = async () => {
     try {
@@ -266,6 +274,26 @@ export default function ProfileScreen() {
     setModalVisible(false);
   };
 
+  const pickImageFromGallery = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+
+      if (!result.canceled) {
+        const uri = result.assets ? result.assets[0].uri : result.uri;
+        setImageUrl(uri);
+        setModalVisible(false);
+      }
+    } catch (error) {
+      console.error("Error al seleccionar imagen:", error);
+      Alert.alert("Error", "No se pudo cargar la imagen de tu galería.");
+    }
+  };
+
   if (loading)
     return (
       <View style={styles.loadingContainer}>
@@ -277,7 +305,7 @@ export default function ProfileScreen() {
     <SafeAreaView style={{ flex: 1 }}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={{ alignItems: "center" }}
+        contentContainerStyle={{ alignItems: "center", paddingBottom: 40 }}
       >
         {/* CABECERA */}
         <View style={styles.header}>
@@ -299,7 +327,7 @@ export default function ProfileScreen() {
                 style={styles.changeImgBtn}
                 onPress={openImageModal}
               >
-                <MaterialIcons name="image" size={18} color="#fff" />
+                <MaterialIcons name="camera" size={20} color="#fff" />
               </TouchableOpacity>
             )}
           </View>
@@ -310,7 +338,7 @@ export default function ProfileScreen() {
 
         {/* CARRERA Y SEMESTRE */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Programa y Semestre Académico</Text>
+          <Text style={styles.sectionTitle}>📚 Programa Académico</Text>
 
           {isEditing ? (
             <>
@@ -318,32 +346,34 @@ export default function ProfileScreen() {
                 style={styles.input}
                 onPress={() => setIsCareerOpen(!isCareerOpen)}
               >
-                <Text style={{ color: "#000" }}>{career}</Text>
+                <Text style={{ color: "#000", fontWeight: "600" }}>{career}</Text>
+                <MaterialIcons name="expand-more" size={20} color="#e20613" />
               </TouchableOpacity>
 
               {isCareerOpen &&
                 carreras.map((c) => (
                   <TouchableOpacity
                     key={c}
-                    style={[styles.input, { backgroundColor: "#b8b8b886" }]}
+                    style={[styles.input, styles.dropdownItem]}
                     onPress={() => onCareerSelect(c)}
                   >
-                    <Text>{c}</Text>
+                    <Text style={{ color: "#000" }}>{c}</Text>
                   </TouchableOpacity>
                 ))}
 
               <TouchableOpacity
-                style={styles.input}
+                style={[styles.input, { marginTop: 12 }]}
                 onPress={() => setIsSemesterOpen(!isSemesterOpen)}
               >
-                <Text>{semester}</Text>
+                <Text style={{ color: "#000", fontWeight: "600" }}>{semester}</Text>
+                <MaterialIcons name="expand-more" size={20} color="#e20613" />
               </TouchableOpacity>
 
               {isSemesterOpen &&
                 semesters.map((sem) => (
                   <TouchableOpacity
                     key={sem}
-                    style={[styles.input, { backgroundColor: "#b8b8b886" }]}
+                    style={[styles.input, styles.dropdownItem]}
                     onPress={() => {
                       setSemester(sem);
                       setIsSemesterOpen(false);
@@ -354,33 +384,37 @@ export default function ProfileScreen() {
                 ))}
             </>
           ) : (
-            <Text style={styles.sectionText}>
-              {career} - {semester}
-            </Text>
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>
+                {career} • {semester}
+              </Text>
+            </View>
           )}
         </View>
 
         {/* INTERESES */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Intereses</Text>
+          <Text style={styles.sectionTitle}>✨ Intereses</Text>
 
           {isEditing ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}>
               {allInterests.map((interest) => {
                 const selected = selectedInterests.includes(interest);
                 return (
                   <TouchableOpacity
                     key={interest}
                     onPress={() => toggleInterest(interest)}
-                    style={{
-                      backgroundColor: selected ? "#e20613" : "#ddd",
-                      paddingVertical: 6,
-                      paddingHorizontal: 12,
-                      borderRadius: 20,
-                      margin: 5,
-                    }}
+                    style={[
+                      styles.interestButton,
+                      selected && styles.interestButtonSelected,
+                    ]}
                   >
-                    <Text style={{ color: selected ? "#fff" : "#000" }}>
+                    <Text
+                      style={[
+                        styles.interestButtonText,
+                        selected && styles.interestButtonTextSelected,
+                      ]}
+                    >
                       {interest}
                     </Text>
                   </TouchableOpacity>
@@ -388,69 +422,78 @@ export default function ProfileScreen() {
               })}
             </View>
           ) : (
-            <Text style={styles.sectionText}>
-              {selectedInterests.length
-                ? selectedInterests.join(", ")
-                : "No has seleccionado intereses"}
-            </Text>
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>
+                {selectedInterests.length
+                  ? selectedInterests.join(" • ")
+                  : "Sin intereses seleccionados"}
+              </Text>
+            </View>
           )}
-        </View>
-
-        {/* IMAGEN PREDETERMINADA (info) */}
-        <View style={[styles.section, { alignItems: "flex-start" }]}>
-          <Text style={styles.sectionTitle}>Imagen de perfil</Text>
-          <Text style={[styles.sectionText, { marginBottom: 8 }]}>
-            La imagen seleccionada se mostrará en tu perfil y en el panel de
-            administración.
-          </Text>
         </View>
 
         {/* SOBRE MÍ */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Sobre mí</Text>
+          <Text style={styles.sectionTitle}>💬 Sobre mí</Text>
           {isEditing ? (
             <TextInput
-              style={[styles.input, { height: 120 }]}
+              style={styles.textAreaInput}
               value={aboutMe}
               onChangeText={setAboutMe}
               multiline
+              placeholder="Cuéntanos un poco sobre ti..."
+              placeholderTextColor="#999"
             />
           ) : (
-            <Text style={styles.sectionText}>{aboutMe}</Text>
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>
+                {aboutMe || "Aún no has completado esta sección"}
+              </Text>
+            </View>
           )}
         </View>
 
-        {/* ESTADÍSTICAS */}
+        {/* ESTADÍSTICAS - SOLO INTERESES */}
         <View style={styles.statsContainer}>
-          {[
-            { label: "Grupos", value: "0" },
-            { label: "Intereses", value: selectedInterests.length.toString() },
-            { label: "Confirmaciones", value: "0" },
-          ].map((item, i) => (
-            <View key={i} style={styles.statCard}>
-              <Text style={styles.statValue}>{item.value}</Text>
-              <Text style={styles.statLabel}>{item.label}</Text>
-            </View>
-          ))}
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{selectedInterests.length}</Text>
+            <Text style={styles.statLabel}>Intereses</Text>
+          </View>
         </View>
       </ScrollView>
 
-      {/* MODAL DE IMÁGENES PREDETERMINADAS */}
+      {/* MODAL DE IMÁGENES */}
       <Modal animationType="slide" transparent visible={modalVisible}>
         <View style={styles.modalContainer}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Elige tu nueva foto</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Elige tu foto de perfil</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <MaterialIcons name="close" size={28} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Botón para abrir galería */}
+            <TouchableOpacity
+              style={styles.galleryButton}
+              onPress={pickImageFromGallery}
+            >
+              <MaterialIcons name="photo-library" size={24} color="#fff" />
+              <Text style={styles.galleryButtonText}>Subir desde mi galería</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.orText}>O elige una imagen predeterminada:</Text>
 
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              style={{ marginVertical: 8 }}
+              style={{ marginVertical: 16 }}
             >
               {DEFAULT_IMAGES.map((img, index) => (
                 <TouchableOpacity
                   key={index}
                   onPress={() => pickImage(img)}
-                  style={{ marginRight: 10 }}
+                  style={{ marginRight: 12 }}
                 >
                   <Image source={{ uri: img }} style={styles.pickImage} />
                 </TouchableOpacity>
@@ -471,129 +514,213 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f9fbff" },
+  container: { flex: 1, backgroundColor: "#f8fafb" },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f9fbff",
+    backgroundColor: "#f8fafb",
   },
 
   header: {
-    backgroundColor: "#e20615ea",
+    backgroundColor: "#e20615",
     alignItems: "center",
     paddingTop: 60,
-    paddingBottom: 30,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    elevation: 6,
+    paddingBottom: 40,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    elevation: 8,
     width: "100%",
+    shadowColor: "#e20615",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
   },
   editButton: {
     position: "absolute",
     top: 40,
     right: 20,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    borderRadius: 20,
-    padding: 6,
+    backgroundColor: "#e20613",
+    borderRadius: 24,
+    padding: 10,
+    elevation: 6,
     zIndex: 10,
   },
   avatarContainer: {
-    marginBottom: 12,
-    width: 110,
-    height: 110,
-    borderRadius: 60,
+    marginBottom: 16,
+    width: 130,
+    height: 130,
+    borderRadius: 70,
     overflow: "hidden",
+    elevation: 8,
   },
   avatar: {
     width: "100%",
     height: "100%",
-    borderRadius: 60,
-    borderWidth: 3,
+    borderRadius: 70,
+    borderWidth: 4,
     borderColor: "#fff",
   },
   changeImgBtn: {
     position: "absolute",
-    bottom: 6,
-    right: 6,
-    backgroundColor: "#0a7cff",
-    padding: 8,
-    borderRadius: 20,
-    elevation: 4,
+    bottom: 8,
+    right: 8,
+    backgroundColor: "#e20613",
+    padding: 10,
+    borderRadius: 24,
+    elevation: 6,
   },
 
-  name: { fontSize: 22, fontWeight: "700", color: "#fff" },
-  email: { color: "#e0e0e0", marginTop: 4 },
+  name: { fontSize: 24, fontWeight: "800", color: "#fff", marginBottom: 4 },
+  email: { color: "rgba(255,255,255,0.85)", fontSize: 14, fontWeight: "500" },
 
-  section: { width: "90%", marginVertical: 10 },
+  section: { width: "90%", marginVertical: 16 },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#222",
-    marginBottom: 6,
+    marginBottom: 10,
   },
-  sectionText: { color: "#00000086", lineHeight: 20 },
+  sectionText: { color: "#666", lineHeight: 22, fontSize: 15 },
 
   input: {
-    backgroundColor: "#b8b8b886",
-    borderRadius: 8,
-    padding: 10,
-    marginVertical: 4,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    marginVertical: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    elevation: 2,
   },
+  dropdownItem: {
+    backgroundColor: "#f5f5f5",
+    marginVertical: 6,
+  },
+  textAreaInput: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 8,
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    fontSize: 15,
+    color: "#333",
+    textAlignVertical: "top",
+  },
+  displayBox: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  displayText: { color: "#555", fontSize: 15, lineHeight: 22 },
+
+  interestButton: {
+    backgroundColor: "#f0f0f0",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    margin: 6,
+    borderWidth: 1.5,
+    borderColor: "#ddd",
+  },
+  interestButtonSelected: {
+    backgroundColor: "#e20613",
+    borderColor: "#e20613",
+  },
+  interestButtonText: { color: "#333", fontWeight: "600", fontSize: 13 },
+  interestButtonTextSelected: { color: "#fff" },
 
   statsContainer: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "center",
     width: "90%",
-    marginTop: 20,
-    marginBottom: 40,
+    marginTop: 28,
+    marginBottom: 20,
   },
   statCard: {
     backgroundColor: "#fff",
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 22,
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 32,
     alignItems: "center",
-    elevation: 3,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
   },
-  statValue: { fontSize: 20, fontWeight: "700", color: "#e20613" },
-  statLabel: { color: "#555", marginTop: 4, fontSize: 13 },
+  statValue: { fontSize: 28, fontWeight: "800", color: "#e20613" },
+  statLabel: { color: "#666", marginTop: 6, fontSize: 14, fontWeight: "600" },
 
-  /* modal styles */
+  /* Modal styles */
   modalContainer: {
     flex: 1,
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     padding: 20,
   },
   modalBox: {
     backgroundColor: "#fff",
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 20,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
   modalTitle: {
     fontSize: 18,
+    fontWeight: "800",
+    color: "#222",
+  },
+  galleryButton: {
+    backgroundColor: "#e20613",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 14,
+    elevation: 3,
+  },
+  galleryButtonText: {
+    color: "#fff",
     fontWeight: "700",
-    marginBottom: 12,
+    fontSize: 15,
+    marginLeft: 10,
+  },
+  orText: {
+    textAlign: "center",
+    color: "#666",
+    marginVertical: 12,
+    fontSize: 13,
+    fontWeight: "600",
   },
   pickImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 12,
+    width: 110,
+    height: 110,
+    borderRadius: 14,
     borderWidth: 2,
-    borderColor: "#ccc",
+    borderColor: "#e20613",
   },
   closeModal: {
-    marginTop: 18,
-    backgroundColor: "#E20615",
-    paddingVertical: 10,
-    borderRadius: 8,
+    marginTop: 16,
+    backgroundColor: "#e20613",
+    paddingVertical: 12,
+    borderRadius: 12,
+    elevation: 3,
   },
   closeText: {
     textAlign: "center",
     color: "#fff",
     fontWeight: "700",
-    fontSize: 16,
+    fontSize: 15,
   },
 });
- 
