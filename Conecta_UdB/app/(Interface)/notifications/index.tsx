@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,8 +7,10 @@ import {
   TouchableOpacity,
   Alert,
   SafeAreaView,
+  Animated,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
 interface Notification {
   id: string;
@@ -49,7 +51,6 @@ const initialNotifications: Notification[] = [
   },
 ];
 
-// NUEVO: Datos de ejemplo para generar notificaciones aleatorias
 const sampleMessages = {
   confirmation: [
     "Confirmaste tu asistencia al evento de Juan Pérez",
@@ -93,41 +94,41 @@ const getNotificationConfig = (type: string) => {
     case "confirmation":
       return {
         icon: "check-circle",
-        color: "#28a745",
-        bgColor: "#e8f5e9",
-        borderColor: "#28a745",
+        color: "#E63946",
+        bgColor: "#FFEBEE",
+        borderColor: "#E63946",
         label: "Confirmación",
       };
     case "reminder":
       return {
         icon: "schedule",
-        color: "#ff9800",
-        bgColor: "#fff3e0",
-        borderColor: "#ff9800",
+        color: "#E63946",
+        bgColor: "#FFEBEE",
+        borderColor: "#E63946",
         label: "Recordatorio",
       };
     case "invitation":
       return {
         icon: "mail",
-        color: "#2196f3",
-        bgColor: "#e3f2fd",
-        borderColor: "#2196f3",
+        color: "#E63946",
+        bgColor: "#FFEBEE",
+        borderColor: "#E63946",
         label: "Invitación",
       };
     case "announcement":
       return {
         icon: "notifications",
-        color: "#9c27b0",
-        bgColor: "#f3e5f5",
-        borderColor: "#9c27b0",
+        color: "#E63946",
+        bgColor: "#FFEBEE",
+        borderColor: "#E63946",
         label: "Anuncio",
       };
     default:
       return {
         icon: "info",
         color: "#666",
-        bgColor: "#f5f5f5",
-        borderColor: "#ddd",
+        bgColor: "#F5F5F5",
+        borderColor: "#DDD",
         label: "Notificación",
       };
   }
@@ -150,12 +151,11 @@ const formatDate = (dateString: string) => {
   return date.toLocaleDateString("es-ES");
 };
 
-// NUEVO: Función para generar notificación aleatoria
 const generateRandomNotification = (): Notification => {
   const randomType = types[Math.floor(Math.random() * types.length)];
   const messages = sampleMessages[randomType];
   const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-  
+
   const now = new Date();
   const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
     2,
@@ -179,21 +179,29 @@ export default function NotificationsScreen() {
     initialNotifications
   );
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // NUEVO: Efecto para generar notificación cada 5 minutos
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
   useEffect(() => {
     const interval = setInterval(() => {
       const newNotification = generateRandomNotification();
       setNotifications((prev) => [newNotification, ...prev]);
-      
-      // Opcional: mostrar alerta visual cuando llega una notificación
+
       Alert.alert(
         "Nueva notificación",
         newNotification.message,
         [{ text: "Aceptar", style: "default" }],
         { cancelable: false }
       );
-    }, 5 * 60 * 1000); // 5 minutos en milisegundos
+    }, 30 * 1000);
 
     return () => clearInterval(interval);
   }, []);
@@ -206,9 +214,22 @@ export default function NotificationsScreen() {
   };
 
   const deleteNotification = (id: string) => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.9,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     const updated = notifications.filter((notif) => notif.id !== id);
     setNotifications(updated);
-    Alert.alert("Notificación eliminada", "La notificación ha sido removida.");
+    setSelectedNotificationId(null);
   };
 
   const markAllAsRead = () => {
@@ -245,84 +266,127 @@ export default function NotificationsScreen() {
     const isSelected = selectedNotificationId === item.id;
 
     return (
-      <TouchableOpacity
-        style={[
-          styles.notificationCard,
-          { borderLeftColor: config.borderColor, backgroundColor: config.bgColor },
-          isSelected && styles.selectedCard,
-        ]}
-        onPress={() => {
-          setSelectedNotificationId(item.id);
-          markAsRead(item.id);
-        }}
-        delayLongPress={500}
-        onLongPress={() => deleteNotification(item.id)}
-      >
-        <View style={styles.notificationContent}>
-          <View style={styles.headerRow}>
-            <View style={styles.iconBadge}>
-              <MaterialIcons name={config.icon as any} size={20} color={config.color} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.typeLabel}>{config.label}</Text>
-              <Text style={styles.dateText}>{formatDate(item.date)}</Text>
-            </View>
-            {!item.read && <View style={styles.unreadDot} />}
-          </View>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <TouchableOpacity
+          style={[
+            styles.notificationCard,
+            { borderLeftColor: config.borderColor },
+            isSelected && styles.selectedCard,
+          ]}
+          onPress={() => {
+            setSelectedNotificationId(item.id);
+            markAsRead(item.id);
+            Animated.timing(scaleAnim, {
+              toValue: 1.02,
+              duration: 100,
+              useNativeDriver: true,
+            }).start(() => {
+              Animated.timing(scaleAnim, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+              }).start();
+            });
+          }}
+          delayLongPress={500}
+          onLongPress={() => deleteNotification(item.id)}
+          activeOpacity={0.7}
+        >
+          <LinearGradient
+            colors={[config.bgColor, "#FFFFFF"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.notificationGradient}
+          >
+            <View style={styles.notificationContent}>
+              <View style={styles.headerRow}>
+                <View
+                  style={[
+                    styles.iconBadge,
+                    { backgroundColor: "rgba(230, 57, 70, 0.15)" },
+                  ]}
+                >
+                  <MaterialIcons
+                    name={config.icon as any}
+                    size={22}
+                    color={config.color}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.typeLabel}>{config.label}</Text>
+                  <Text style={styles.dateText}>{formatDate(item.date)}</Text>
+                </View>
+                {!item.read && <View style={styles.unreadDot} />}
+              </View>
 
-          <Text style={styles.message}>{item.message}</Text>
+              <Text style={styles.message}>{item.message}</Text>
 
-          {isSelected && (
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => deleteNotification(item.id)}
-            >
-              <MaterialIcons name="delete-outline" size={18} color="#e20613" />
-              <Text style={styles.deleteButtonText}>Eliminar</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </TouchableOpacity>
+              {isSelected && (
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => deleteNotification(item.id)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="delete-outline" size={16} color="#E63946" />
+                  <Text style={styles.deleteButtonText}>Eliminar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* HEADER */}
-        <View style={styles.headerContainer}>
-          <View>
-            <Text style={styles.title}>🔔 Notificaciones</Text>
-            {unreadCount > 0 && (
-              <Text style={styles.unreadCounter}>
-                {unreadCount} {unreadCount === 1 ? "nueva" : "nuevas"}
-              </Text>
+      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+        <LinearGradient
+          colors={["#FFFFFF", "#F7F7F7"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContainer}>
+            <View>
+              <Text style={styles.title}>Notificaciones</Text>
+              {unreadCount > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadCounter}>
+                    {unreadCount} {unreadCount === 1 ? "nueva" : "nuevas"}
+                  </Text>
+                </View>
+              )}
+            </View>
+            {notifications.length > 0 && (
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.iconButton,
+                    unreadCount === 0 && styles.iconButtonDisabled,
+                  ]}
+                  onPress={markAllAsRead}
+                  disabled={unreadCount === 0}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons
+                    name="done-all"
+                    size={22}
+                    color={unreadCount === 0 ? "#CCC" : "#E63946"}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={deleteAll}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="delete-sweep" size={22} color="#E63946" />
+                </TouchableOpacity>
+              </View>
             )}
           </View>
-          {notifications.length > 0 && (
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={markAllAsRead}
-                disabled={unreadCount === 0}
-              >
-                <MaterialIcons
-                  name="done-all"
-                  size={22}
-                  color={unreadCount === 0 ? "#ccc" : "#e20613"}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={deleteAll}
-              >
-                <MaterialIcons name="delete-sweep" size={22} color="#e20613" />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        </LinearGradient>
 
-        {/* LISTA DE NOTIFICACIONES */}
         <FlatList
           data={notifications}
           keyExtractor={(item) => item.id}
@@ -331,7 +395,7 @@ export default function NotificationsScreen() {
           scrollEnabled={true}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="notifications-none" size={60} color="#ddd" />
+              <MaterialIcons name="notifications-none" size={60} color="#DDD" />
               <Text style={styles.noNotifications}>
                 No tienes notificaciones
               </Text>
@@ -341,7 +405,7 @@ export default function NotificationsScreen() {
             </View>
           }
         />
-      </View>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -349,136 +413,171 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f8fafb",
+    backgroundColor: "#FFFFFF",
   },
   container: {
     flex: 1,
-    backgroundColor: "#f8fafb",
+    backgroundColor: "#FFFFFF",
+  },
+  headerGradient: {
     paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingVertical: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: "#E63946",
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   headerContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginVertical: 16,
   },
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#222",
-    marginBottom: 4,
+    color: "#121212",
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  unreadBadge: {
+    backgroundColor: "#E63946",
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
   unreadCounter: {
-    fontSize: 13,
-    color: "#e20613",
-    fontWeight: "600",
+    fontSize: 12,
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   actionButtons: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
   },
   iconButton: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 10,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    padding: 12,
+    shadowColor: "#121212",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+    borderWidth: 1.5,
+    borderColor: "#F0F0F0",
+  },
+  iconButtonDisabled: {
+    opacity: 0.5,
   },
 
   listContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 24,
     paddingBottom: 30,
   },
   notificationCard: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    marginVertical: 8,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    borderLeftWidth: 5,
+    marginVertical: 10,
+    borderRadius: 18,
     overflow: "hidden",
+    borderLeftWidth: 6,
+    shadowColor: "#121212",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   selectedCard: {
-    elevation: 4,
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  notificationGradient: {
+    padding: 0,
   },
   notificationContent: {
-    padding: 14,
+    padding: 16,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   iconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(226, 6, 19, 0.1)",
     marginRight: 12,
   },
   typeLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
-    color: "#333",
-    marginBottom: 2,
+    color: "#121212",
+    marginBottom: 3,
+    letterSpacing: 0.2,
   },
   dateText: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#999",
+    fontWeight: "600",
   },
   unreadDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#e20613",
-    marginLeft: 8,
+    backgroundColor: "#E63946",
+    marginLeft: 10,
+    shadowColor: "#E63946",
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 3,
   },
   message: {
-    fontSize: 15,
-    color: "#333",
-    lineHeight: 22,
+    fontSize: 13,
+    color: "#555",
+    lineHeight: 20,
     marginBottom: 12,
+    fontWeight: "500",
   },
   deleteButton: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: "rgba(226, 6, 19, 0.1)",
+    borderRadius: 10,
+    backgroundColor: "rgba(230, 57, 70, 0.1)",
     marginTop: 8,
+    borderWidth: 1.5,
+    borderColor: "rgba(230, 57, 70, 0.2)",
   },
   deleteButtonText: {
     marginLeft: 6,
-    color: "#e20613",
-    fontWeight: "600",
-    fontSize: 13,
+    color: "#E63946",
+    fontWeight: "700",
+    fontSize: 12,
   },
 
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 80,
+    paddingVertical: 100,
   },
   noNotifications: {
     fontSize: 18,
-    fontWeight: "700",
-    color: "#999",
+    fontWeight: "800",
+    color: "#121212",
     marginTop: 16,
+    marginBottom: 6,
   },
   noNotificationsSubtitle: {
-    fontSize: 14,
-    color: "#bbb",
-    marginTop: 6,
+    fontSize: 13,
+    color: "#999",
+    fontWeight: "600",
   },
 });

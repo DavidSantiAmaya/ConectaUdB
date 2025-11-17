@@ -10,11 +10,13 @@ import {
   Alert,
   Modal,
   SafeAreaView,
+  Animated,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
 
 const PROFILE_KEY = "@conectaudb_profile";
 const USERS_KEY = "users";
@@ -34,6 +36,8 @@ interface ProfileData {
   semester: string;
   selectedInterests: string[];
   aboutMe: string;
+  hobby: string;
+  favoriteMovie: string;
   imageUrl?: string;
 }
 
@@ -126,9 +130,14 @@ export default function ProfileScreen() {
 
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [aboutMe, setAboutMe] = useState("");
+  const [hobby, setHobby] = useState("");
+  const [favoriteMovie, setFavoriteMovie] = useState("");
 
   const [imageUrl, setImageUrl] = useState<string>(DEFAULT_IMAGES[0]);
   const [modalVisible, setModalVisible] = useState(false);
+
+  const [scaleAnim] = useState(new Animated.Value(1));
+  const [fadeAnim] = useState(new Animated.Value(0));
 
   const carreras = Object.keys(maxSemestersPerCareer);
 
@@ -142,6 +151,11 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadCurrentUser();
     requestPermissions();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
   const requestPermissions = async () => {
@@ -183,6 +197,8 @@ export default function ProfileScreen() {
         setSemester(profile.semester ?? semList[0]);
         setSelectedInterests(profile.selectedInterests ?? []);
         setAboutMe(profile.aboutMe ?? "");
+        setHobby(profile.hobby ?? "");
+        setFavoriteMovie(profile.favoriteMovie ?? "");
         setImageUrl(profile.imageUrl ?? user.imageUrl ?? DEFAULT_IMAGES[0]);
       } else {
         const semList = generateSemestersForCareer(career);
@@ -213,6 +229,8 @@ export default function ProfileScreen() {
       semester,
       selectedInterests,
       aboutMe,
+      hobby,
+      favoriteMovie,
       imageUrl,
     };
 
@@ -249,8 +267,8 @@ export default function ProfileScreen() {
   const toggleInterest = (interest: string) => {
     if (selectedInterests.includes(interest)) {
       setSelectedInterests(selectedInterests.filter((i) => i !== interest));
-    } else if (selectedInterests.length >= 3) {
-      Alert.alert("Límite máximo", "Solo puedes seleccionar hasta 3 intereses.");
+    } else if (selectedInterests.length >= 8) {
+      Alert.alert("Límite máximo", "Solo puedes seleccionar hasta 8 intereses.");
     } else {
       setSelectedInterests([...selectedInterests, interest]);
     }
@@ -297,189 +315,319 @@ export default function ProfileScreen() {
   if (loading)
     return (
       <View style={styles.loadingContainer}>
-        <Text style={{ color: "#666" }}>Cargando...</Text>
+        <LinearGradient
+          colors={["#FFFFFF", "#F7F7F7"]}
+          style={styles.loadingGradient}
+        >
+          <Text style={styles.loadingText}>Cargando tu perfil...</Text>
+        </LinearGradient>
       </View>
     );
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={{ alignItems: "center", paddingBottom: 40 }}
-      >
-        {/* CABECERA */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => (isEditing ? saveProfile() : setIsEditing(true))}
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={{ alignItems: "center", paddingBottom: 40 }}
+        >
+          <LinearGradient
+            colors={["#E63946", "#C1121F"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.header}
           >
-            <MaterialIcons
-              name={isEditing ? "check" : "edit"}
-              size={24}
-              color="#fff"
-            />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => (isEditing ? saveProfile() : setIsEditing(true))}
+              activeOpacity={0.7}
+            >
+              <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                <View style={styles.editButtonInner}>
+                  <MaterialIcons
+                    name={isEditing ? "check" : "edit"}
+                    size={22}
+                    color="#FFFFFF"
+                  />
+                </View>
+              </Animated.View>
+            </TouchableOpacity>
 
-          <View style={styles.avatarContainer}>
-            <Image source={{ uri: imageUrl }} style={styles.avatar} />
-            {isEditing && (
-              <TouchableOpacity
-                style={styles.changeImgBtn}
-                onPress={openImageModal}
-              >
-                <MaterialIcons name="camera" size={20} color="#fff" />
-              </TouchableOpacity>
+            <View style={styles.avatarContainer}>
+              <Image source={{ uri: imageUrl }} style={styles.avatar} />
+              {isEditing && (
+                <TouchableOpacity
+                  style={styles.changeImgBtn}
+                  onPress={openImageModal}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.changeImgBtnInner}>
+                    <MaterialIcons name="camera-alt" size={18} color="#FFFFFF" />
+                  </View>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <Text style={styles.name}>{name}</Text>
+            <Text style={styles.email}>{email}</Text>
+          </LinearGradient>
+
+          <View style={styles.statsRow}>
+            <View style={styles.statSmall}>
+              <Text style={styles.statSmallValue}>{selectedInterests.length}</Text>
+              <Text style={styles.statSmallLabel}>Intereses</Text>
+            </View>
+            <View style={styles.statIcon}>
+              {hobby ? (
+                <MaterialIcons name="sports-tennis" size={28} color="#E63946" />
+              ) : (
+                <MaterialIcons name="add-circle-outline" size={28} color="#CCC" />
+              )}
+              <Text style={styles.statIconLabel}>Hobby</Text>
+            </View>
+            <View style={styles.statIcon}>
+              {favoriteMovie ? (
+                <MaterialIcons name="movie" size={28} color="#E63946" />
+              ) : (
+                <MaterialIcons name="add-circle-outline" size={28} color="#CCC" />
+              )}
+              <Text style={styles.statIconLabel}>Película</Text>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Programa Académico</Text>
+
+            {isEditing ? (
+              <>
+                <TouchableOpacity
+                  style={styles.input}
+                  onPress={() => setIsCareerOpen(!isCareerOpen)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.inputText}>{career}</Text>
+                  <MaterialIcons
+                    name="expand-more"
+                    size={20}
+                    color="#E63946"
+                  />
+                </TouchableOpacity>
+
+                {isCareerOpen &&
+                  carreras.map((c) => (
+                    <TouchableOpacity
+                      key={c}
+                      style={styles.dropdownItem}
+                      onPress={() => onCareerSelect(c)}
+                      activeOpacity={0.6}
+                    >
+                      <Text style={styles.dropdownText}>{c}</Text>
+                    </TouchableOpacity>
+                  ))}
+
+                <TouchableOpacity
+                  style={[styles.input, { marginTop: 12 }]}
+                  onPress={() => setIsSemesterOpen(!isSemesterOpen)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.inputText}>{semester}</Text>
+                  <MaterialIcons
+                    name="expand-more"
+                    size={20}
+                    color="#E63946"
+                  />
+                </TouchableOpacity>
+
+                {isSemesterOpen &&
+                  semesters.map((sem) => (
+                    <TouchableOpacity
+                      key={sem}
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setSemester(sem);
+                        setIsSemesterOpen(false);
+                      }}
+                      activeOpacity={0.6}
+                    >
+                      <Text style={styles.dropdownText}>{sem}</Text>
+                    </TouchableOpacity>
+                  ))}
+              </>
+            ) : (
+              <View style={styles.displayBox}>
+                <View style={styles.displayContent}>
+                  <MaterialIcons name="school" size={18} color="#E63946" />
+                  <Text style={styles.displayText}>
+                    {career} • {semester}
+                  </Text>
+                </View>
+              </View>
             )}
           </View>
 
-          <Text style={styles.name}>{name}</Text>
-          <Text style={styles.email}>{email}</Text>
-        </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Intereses (Máx. 8)</Text>
 
-        {/* CARRERA Y SEMESTRE */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📚 Programa Académico</Text>
-
-          {isEditing ? (
-            <>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => setIsCareerOpen(!isCareerOpen)}
-              >
-                <Text style={{ color: "#000", fontWeight: "600" }}>{career}</Text>
-                <MaterialIcons name="expand-more" size={20} color="#e20613" />
-              </TouchableOpacity>
-
-              {isCareerOpen &&
-                carreras.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    style={[styles.input, styles.dropdownItem]}
-                    onPress={() => onCareerSelect(c)}
-                  >
-                    <Text style={{ color: "#000" }}>{c}</Text>
-                  </TouchableOpacity>
-                ))}
-
-              <TouchableOpacity
-                style={[styles.input, { marginTop: 12 }]}
-                onPress={() => setIsSemesterOpen(!isSemesterOpen)}
-              >
-                <Text style={{ color: "#000", fontWeight: "600" }}>{semester}</Text>
-                <MaterialIcons name="expand-more" size={20} color="#e20613" />
-              </TouchableOpacity>
-
-              {isSemesterOpen &&
-                semesters.map((sem) => (
-                  <TouchableOpacity
-                    key={sem}
-                    style={[styles.input, styles.dropdownItem]}
-                    onPress={() => {
-                      setSemester(sem);
-                      setIsSemesterOpen(false);
-                    }}
-                  >
-                    <Text>{sem}</Text>
-                  </TouchableOpacity>
-                ))}
-            </>
-          ) : (
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>
-                {career} • {semester}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* INTERESES */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>✨ Intereses</Text>
-
-          {isEditing ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}>
-              {allInterests.map((interest) => {
-                const selected = selectedInterests.includes(interest);
-                return (
-                  <TouchableOpacity
-                    key={interest}
-                    onPress={() => toggleInterest(interest)}
-                    style={[
-                      styles.interestButton,
-                      selected && styles.interestButtonSelected,
-                    ]}
-                  >
-                    <Text
+            {isEditing ? (
+              <View style={styles.interestGrid}>
+                {allInterests.map((interest) => {
+                  const selected = selectedInterests.includes(interest);
+                  return (
+                    <TouchableOpacity
+                      key={interest}
+                      onPress={() => toggleInterest(interest)}
                       style={[
-                        styles.interestButtonText,
-                        selected && styles.interestButtonTextSelected,
+                        styles.interestButton,
+                        selected && styles.interestButtonSelected,
                       ]}
+                      activeOpacity={0.6}
                     >
-                      {interest}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>
-                {selectedInterests.length
-                  ? selectedInterests.join(" • ")
-                  : "Sin intereses seleccionados"}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* SOBRE MÍ */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>💬 Sobre mí</Text>
-          {isEditing ? (
-            <TextInput
-              style={styles.textAreaInput}
-              value={aboutMe}
-              onChangeText={setAboutMe}
-              multiline
-              placeholder="Cuéntanos un poco sobre ti..."
-              placeholderTextColor="#999"
-            />
-          ) : (
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>
-                {aboutMe || "Aún no has completado esta sección"}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* ESTADÍSTICAS - SOLO INTERESES */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{selectedInterests.length}</Text>
-            <Text style={styles.statLabel}>Intereses</Text>
+                      <Text
+                        style={[
+                          styles.interestButtonText,
+                          selected && styles.interestButtonTextSelected,
+                        ]}
+                      >
+                        {interest}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.displayBox}>
+                <View style={styles.displayContent}>
+                  <MaterialIcons name="favorite" size={18} color="#E63946" />
+                  <Text style={styles.displayText}>
+                    {selectedInterests.length
+                      ? selectedInterests.join(" • ")
+                      : "Sin intereses seleccionados"}
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
-        </View>
-      </ScrollView>
 
-      {/* MODAL DE IMÁGENES */}
-      <Modal animationType="slide" transparent visible={modalVisible}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalBox}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Mi Hobby</Text>
+            {isEditing ? (
+              <View style={styles.textAreaWrapper}>
+                <MaterialIcons
+                  name="sports-tennis"
+                  size={18}
+                  color="#E63946"
+                  style={styles.textAreaIcon}
+                />
+                <TextInput
+                  style={styles.textAreaInput}
+                  value={hobby}
+                  onChangeText={setHobby}
+                  placeholder="¿Cuál es tu hobby favorito?"
+                  placeholderTextColor="#BBB"
+                />
+              </View>
+            ) : (
+              <View style={styles.displayBox}>
+                <View style={styles.displayContent}>
+                  <MaterialIcons name="sports-tennis" size={18} color="#E63946" />
+                  <Text style={styles.displayText}>
+                    {hobby || "Aún no has añadido tu hobby"}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Película Favorita</Text>
+            {isEditing ? (
+              <View style={styles.textAreaWrapper}>
+                <MaterialIcons
+                  name="movie"
+                  size={18}
+                  color="#E63946"
+                  style={styles.textAreaIcon}
+                />
+                <TextInput
+                  style={styles.textAreaInput}
+                  value={favoriteMovie}
+                  onChangeText={setFavoriteMovie}
+                  placeholder="¿Cuál es tu película favorita?"
+                  placeholderTextColor="#BBB"
+                />
+              </View>
+            ) : (
+              <View style={styles.displayBox}>
+                <View style={styles.displayContent}>
+                  <MaterialIcons name="movie" size={18} color="#E63946" />
+                  <Text style={styles.displayText}>
+                    {favoriteMovie || "Aún no has añadido tu película favorita"}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Sobre mí</Text>
+            {isEditing ? (
+              <View style={styles.textAreaWrapper}>
+                <MaterialIcons
+                  name="description"
+                  size={18}
+                  color="#E63946"
+                  style={styles.textAreaIcon}
+                />
+                <TextInput
+                  style={styles.textAreaInput}
+                  value={aboutMe}
+                  onChangeText={setAboutMe}
+                  multiline
+                  placeholder="Cuéntanos un poco sobre ti..."
+                  placeholderTextColor="#BBB"
+                />
+              </View>
+            ) : (
+              <View style={styles.displayBox}>
+                <View style={styles.displayContent}>
+                  <MaterialIcons name="info" size={18} color="#E63946" />
+                  <Text style={styles.displayText}>
+                    {aboutMe || "Aún no has completado esta sección"}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </Animated.View>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Elige tu foto de perfil</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <MaterialIcons name="close" size={28} color="#333" />
+              <TouchableOpacity
+                onPress={() => setModalVisible(false)}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons name="close" size={28} color="#121212" />
               </TouchableOpacity>
             </View>
 
-            {/* Botón para abrir galería */}
             <TouchableOpacity
               style={styles.galleryButton}
               onPress={pickImageFromGallery}
+              activeOpacity={0.8}
             >
-              <MaterialIcons name="photo-library" size={24} color="#fff" />
-              <Text style={styles.galleryButtonText}>Subir desde mi galería</Text>
+              <MaterialIcons name="photo-library" size={24} color="#FFFFFF" />
+              <Text style={styles.galleryButtonText}>
+                Subir desde mi galería
+              </Text>
             </TouchableOpacity>
 
             <Text style={styles.orText}>O elige una imagen predeterminada:</Text>
@@ -487,13 +635,15 @@ export default function ProfileScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              style={{ marginVertical: 16 }}
+              style={styles.imageScroll}
+              contentContainerStyle={{ paddingHorizontal: 16 }}
             >
               {DEFAULT_IMAGES.map((img, index) => (
                 <TouchableOpacity
                   key={index}
                   onPress={() => pickImage(img)}
-                  style={{ marginRight: 12 }}
+                  style={styles.pickImageContainer}
+                  activeOpacity={0.7}
                 >
                   <Image source={{ uri: img }} style={styles.pickImage} />
                 </TouchableOpacity>
@@ -503,6 +653,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.closeModal}
               onPress={() => setModalVisible(false)}
+              activeOpacity={0.8}
             >
               <Text style={styles.closeText}>Cerrar</Text>
             </TouchableOpacity>
@@ -514,213 +665,390 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafb" },
+  container: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f8fafb",
+  },
+  loadingGradient: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#121212",
   },
 
   header: {
-    backgroundColor: "#e20615",
     alignItems: "center",
     paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 30,
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
-    elevation: 8,
     width: "100%",
-    shadowColor: "#e20615",
+    shadowColor: "#E63946",
     shadowOpacity: 0.3,
-    shadowRadius: 10,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
   },
   editButton: {
     position: "absolute",
-    top: 40,
+    top: 50,
     right: 20,
-    backgroundColor: "#e20613",
-    borderRadius: 24,
-    padding: 10,
-    elevation: 6,
     zIndex: 10,
+  },
+  editButtonInner: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    borderRadius: 28,
+    padding: 12,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.4)",
+    shadowColor: "#121212",
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   avatarContainer: {
     marginBottom: 16,
-    width: 130,
-    height: 130,
-    borderRadius: 70,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     overflow: "hidden",
-    elevation: 8,
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    shadowColor: "#121212",
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
   },
   avatar: {
     width: "100%",
     height: "100%",
-    borderRadius: 70,
-    borderWidth: 4,
-    borderColor: "#fff",
   },
   changeImgBtn: {
     position: "absolute",
     bottom: 8,
     right: 8,
-    backgroundColor: "#e20613",
-    padding: 10,
-    borderRadius: 24,
+  },
+  changeImgBtnInner: {
+    backgroundColor: "#E63946",
+    padding: 8,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    shadowColor: "#121212",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
 
-  name: { fontSize: 24, fontWeight: "800", color: "#fff", marginBottom: 4 },
-  email: { color: "rgba(255,255,255,0.85)", fontSize: 14, fontWeight: "500" },
-
-  section: { width: "90%", marginVertical: 16 },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#222",
-    marginBottom: 10,
+  name: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    marginBottom: 4,
+    letterSpacing: 0.5,
   },
-  sectionText: { color: "#666", lineHeight: 22, fontSize: 15 },
+  email: {
+    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "90%",
+    marginVertical: 20,
+    gap: 10,
+  },
+  statSmall: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    shadowColor: "#121212",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  statSmallValue: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#E63946",
+  },
+  statSmallLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#666",
+    marginTop: 4,
+  },
+  statIcon: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#121212",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  statIconLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#666",
+    marginTop: 6,
+  },
+
+  section: {
+    width: "88%",
+    marginVertical: 14,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#121212",
+    marginBottom: 10,
+    letterSpacing: 0.3,
+  },
 
   input: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     padding: 14,
     marginVertical: 8,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    elevation: 2,
+    borderWidth: 2,
+    borderColor: "#F0F0F0",
+    shadowColor: "#121212",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  inputText: {
+    color: "#121212",
+    fontWeight: "700",
+    fontSize: 14,
   },
   dropdownItem: {
-    backgroundColor: "#f5f5f5",
-    marginVertical: 6,
+    backgroundColor: "#F8F8F8",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginVertical: 5,
+    borderLeftWidth: 4,
+    borderLeftColor: "#E63946",
+  },
+  dropdownText: {
+    color: "#333",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  textAreaWrapper: {
+    position: "relative",
+    marginTop: 8,
+  },
+  textAreaIcon: {
+    position: "absolute",
+    top: 14,
+    left: 14,
+    zIndex: 5,
   },
   textAreaInput: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 8,
-    minHeight: 120,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    fontSize: 15,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 45,
+    minHeight: 100,
+    borderWidth: 2,
+    borderColor: "#F0F0F0",
+    fontSize: 14,
     color: "#333",
     textAlignVertical: "top",
+    fontWeight: "500",
+    shadowColor: "#121212",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   displayBox: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  displayText: { color: "#555", fontSize: 15, lineHeight: 22 },
-
-  interestButton: {
-    backgroundColor: "#f0f0f0",
-    paddingVertical: 8,
+    backgroundColor: "#F9F9F9",
+    borderRadius: 16,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    borderRadius: 22,
-    margin: 6,
-    borderWidth: 1.5,
-    borderColor: "#ddd",
+    marginTop: 8,
+    borderWidth: 2,
+    borderColor: "#F0F0F0",
+    shadowColor: "#121212",
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  displayContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  displayText: {
+    color: "#555",
+    fontSize: 13,
+    lineHeight: 20,
+    flex: 1,
+    fontWeight: "500",
+  },
+
+  interestGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 8,
+    gap: 6,
+  },
+  interestButton: {
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#E5E5E5",
+    marginBottom: 6,
+    shadowColor: "#121212",
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   interestButtonSelected: {
-    backgroundColor: "#e20613",
-    borderColor: "#e20613",
+    backgroundColor: "#E63946",
+    borderColor: "#E63946",
+    shadowColor: "#E63946",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
   },
-  interestButtonText: { color: "#333", fontWeight: "600", fontSize: 13 },
-  interestButtonTextSelected: { color: "#fff" },
+  interestButtonText: {
+    color: "#333",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  interestButtonTextSelected: {
+    color: "#FFFFFF",
+  },
 
-  statsContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    width: "90%",
-    marginTop: 28,
-    marginBottom: 20,
-  },
-  statCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-    alignItems: "center",
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: "#f0f0f0",
-  },
-  statValue: { fontSize: 28, fontWeight: "800", color: "#e20613" },
-  statLabel: { color: "#666", marginTop: 6, fontSize: 14, fontWeight: "600" },
-
-  /* Modal styles */
-  modalContainer: {
+  modalOverlay: {
     flex: 1,
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
-    padding: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "flex-end",
   },
-  modalBox: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 20,
-    elevation: 8,
+  modalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 32,
+    maxHeight: "85%",
+    shadowColor: "#121212",
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -8 },
+    elevation: 12,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 2,
+    borderBottomColor: "#F0F0F0",
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "800",
-    color: "#222",
+    color: "#121212",
   },
   galleryButton: {
-    backgroundColor: "#e20613",
+    backgroundColor: "#E63946",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     marginBottom: 14,
-    elevation: 3,
+    shadowColor: "#E63946",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+    gap: 10,
   },
   galleryButtonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
-    marginLeft: 10,
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 14,
   },
   orText: {
     textAlign: "center",
-    color: "#666",
+    color: "#999",
     marginVertical: 12,
     fontSize: 13,
     fontWeight: "600",
   },
-  pickImage: {
-    width: 110,
-    height: 110,
+  imageScroll: {
+    marginVertical: 10,
+  },
+  pickImageContainer: {
+    marginRight: 10,
     borderRadius: 14,
+    overflow: "hidden",
     borderWidth: 2,
-    borderColor: "#e20613",
+    borderColor: "#E63946",
+    shadowColor: "#121212",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  pickImage: {
+    width: 100,
+    height: 100,
   },
   closeModal: {
     marginTop: 16,
-    backgroundColor: "#e20613",
+    backgroundColor: "#E63946",
     paddingVertical: 12,
-    borderRadius: 12,
-    elevation: 3,
+    borderRadius: 14,
+    shadowColor: "#E63946",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   closeText: {
     textAlign: "center",
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 14,
   },
 });
